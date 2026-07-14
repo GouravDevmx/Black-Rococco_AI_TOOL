@@ -1,0 +1,844 @@
+{
+  "settings": {
+    "brand": {
+      "name": "Black Rococo",
+      "tagline": "TAG-REG",
+      "heroTitle": "HT-REG",
+      "heroSubtitle": "HS-REG",
+      "specialties": "SP-REG",
+      "rating": "4.9",
+      "socialProof": "PROOF",
+      "footer": "FOOT-REG"
+    },
+    "contact": {
+      "address1": "Calzada de los Pirules 260",
+      "address2": "Ciudad Granja, Zapopan",
+      "hours1": "L-S 10:00-19:00",
+      "hours2": "",
+      "whatsappNumber": "3326553522",
+      "whatsappUrl": "https://api.whatsapp.com/send/?phone=3326553522",
+      "mapsUrl": "https://maps.google.com/x",
+      "instagramUrl": "https://instagram.com/x",
+      "instagramHandle": "@x",
+      "tiktokUrl": "https://tiktok.com/@x",
+      "facebookUrl": "https://facebook.com/x"
+    },
+    "promo": {
+      "enabled": true,
+      "label": "SOLO ESTA SEMANA",
+      "title": "−15% en tu primera aplicación de poligel",
+      "note": "Cupo limitado · menciona la promo al confirmar tu cita"
+    },
+    "booking": {
+      "times": [
+        "10:00",
+        "11:00",
+        "12:00",
+        "13:00",
+        "16:00",
+        "17:00",
+        "18:00"
+      ],
+      "confirmNote": "NOTE-REG"
+    },
+    "featuredServiceIds": [
+      "rusogelish",
+      "poligel",
+      "pedispa"
+    ],
+    "gallery": [
+      {
+        "title": "Set editorial",
+        "imageUrl": ""
+      },
+      {
+        "title": "Poligel natural",
+        "imageUrl": ""
+      },
+      {
+        "title": "Rubber base",
+        "imageUrl": ""
+      },
+      {
+        "title": "Manicure ruso",
+        "imageUrl": ""
+      },
+      {
+        "title": "Nail art",
+        "imageUrl": ""
+      },
+      {
+        "title": "Pedicure spa",
+        "imageUrl": ""
+      }
+    ],
+    "notifications": {
+      "adminPanel": true,
+      "googleCalendar": "webhook",
+      "whatsappAdmin": "webhook",
+      "clientReminders": [
+        24,
+        2
+      ]
+    },
+    "googleCalendarIntegration": {},
+    "config": {
+      "whatsappNumber": "3326553522",
+      "colors": [
+        "Rojo",
+        "Nude"
+      ],
+      "bebidas": [
+        "Café"
+      ],
+      "estilos": [
+        "French"
+      ],
+      "serviceCategories": [
+        "MANOS",
+        "PIES"
+      ],
+      "galleryCategories": [
+        "Poligel"
+      ],
+      "heroImages": [
+        {
+          "url": "/hero1.jpg",
+          "title": "H1",
+          "subtitle": "S1"
+        },
+        {
+          "url": "/hero2.jpg",
+          "title": "H2",
+          "subtitle": "S2"
+        },
+        {
+          "url": "/hero3.jpg",
+          "title": "H3",
+          "subtitle": "S3"
+        }
+      ],
+      "aboutUs": {
+        "title": "Sobre Nosotros",
+        "text": "ABOUT-REG",
+        "images": [
+          "/ab1.jpg",
+          "/ab2.jpg"
+        ]
+      }
+    }
+  },
+  "services": [
+    {
+      "id": "ruso",
+      "cat": "MANOS",
+      "name": "Manicure ruso",
+      "desc": "Técnica en seco con cutícula impecable, acabado de larga duración.",
+      "price": 350,
+      "dur": 60,
+      "active": true,
+      "sort": 10,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "rusogelish",
+      "cat": "MANOS",
+      "name": "Manicure ruso + gelish",
+      "desc": "Nuestra especialidad: manicure ruso con esmaltado semipermanente.",
+      "price": 500,
+      "dur": 90,
+      "active": true,
+      "sort": 20,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "poligel",
+      "cat": "MANOS",
+      "name": "Poligel · aplicación completa",
+      "desc": "Uñas esculpidas en poligel, ligeras y resistentes. Incluye gelish.",
+      "price": 750,
+      "dur": 120,
+      "active": true,
+      "sort": 30,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "retoquepoli",
+      "cat": "MANOS",
+      "name": "Retoque de poligel",
+      "desc": "Renueva tu aplicación previa, incluye esmaltado.",
+      "price": 600,
+      "dur": 90,
+      "active": true,
+      "sort": 40,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "rubber",
+      "cat": "MANOS",
+      "name": "Nivelación con rubber",
+      "desc": "Refuerza la uña natural con base rubber, incluye gelish.",
+      "price": 480,
+      "dur": 75,
+      "active": true,
+      "sort": 50,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "pedispa",
+      "cat": "PIES",
+      "name": "Pedicure spa",
+      "desc": "Exfoliación, mascarilla, masaje y esmaltado.",
+      "price": 600,
+      "dur": 60,
+      "active": true,
+      "sort": 60,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "gelishpies",
+      "cat": "PIES",
+      "name": "Gelish pies",
+      "desc": "Esmaltado semipermanente para pies.",
+      "price": 450,
+      "dur": 45,
+      "active": true,
+      "sort": 70,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "nailart",
+      "cat": "EXTRAS",
+      "name": "Nail art por uña",
+      "desc": "Diseño a mano alzada, efectos y pedrería.",
+      "price": 50,
+      "dur": 10,
+      "active": true,
+      "sort": 80,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "retiro",
+      "cat": "EXTRAS",
+      "name": "Retiro de material",
+      "desc": "Retiro cuidadoso de gelish o acrílico.",
+      "price": 150,
+      "dur": 30,
+      "active": true,
+      "sort": 90,
+      "imageUrl": "",
+      "imageUrls": []
+    },
+    {
+      "id": "svc_1002",
+      "cat": "MANOS",
+      "name": "REG Test Service",
+      "desc": "regression",
+      "price": 500,
+      "dur": 60,
+      "imageUrl": "/a.jpg",
+      "imageUrls": [
+        "/a.jpg",
+        "/b.jpg",
+        "/c.jpg"
+      ],
+      "active": true,
+      "sort": 0
+    },
+    {
+      "id": "svc_1003",
+      "cat": "MANOS",
+      "name": "Dbg",
+      "desc": "",
+      "price": 400,
+      "dur": 60,
+      "imageUrl": "",
+      "imageUrls": [],
+      "active": true,
+      "sort": 0
+    }
+  ],
+  "clients": [
+    {
+      "id": "cli_1001",
+      "name": "María López",
+      "whatsapp": "3312345678",
+      "createdAt": "2026-07-01T18:00:00.000Z",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "Natural elegante / french fino",
+      "colorChoice": "Nude rosado y blanco lechoso",
+      "drinkChoice": "Café americano",
+      "timePreference": "Mañanas entre 10:00 y 12:00",
+      "notes": "Prefiere uñas medianas, acabado limpio y sin mucha pedrería.",
+      "allergies": "",
+      "updatedAt": "2026-07-01T18:00:00.000Z"
+    },
+    {
+      "id": "cli_1002",
+      "name": "Ana Torres",
+      "whatsapp": "3322221111",
+      "createdAt": "2026-07-01T18:00:00.000Z",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "Pedicure clásico con gel",
+      "colorChoice": "Rojo vino",
+      "drinkChoice": "Té caliente",
+      "timePreference": "Tardes después de 14:00",
+      "notes": "",
+      "allergies": "Piel sensible, evitar exfoliante fuerte.",
+      "updatedAt": "2026-07-01T18:00:00.000Z"
+    },
+    {
+      "id": "cli_1003",
+      "name": "Final Test",
+      "whatsapp": "3300001111",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "Café",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-13T01:43:08.655Z",
+      "updatedAt": "2026-07-13T01:43:08.655Z"
+    },
+    {
+      "id": "cli_1004",
+      "name": "Regresion Test",
+      "whatsapp": "3331112222",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-13T20:34:01.928Z",
+      "updatedAt": "2026-07-13T20:34:01.928Z"
+    },
+    {
+      "id": "cli_1005",
+      "name": "Walkin OK",
+      "whatsapp": "3335556666",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-13T20:34:02.012Z",
+      "updatedAt": "2026-07-13T20:34:02.012Z"
+    },
+    {
+      "id": "cli_1006",
+      "name": "Sprint Test",
+      "whatsapp": "3334445555",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-13T20:52:27.575Z",
+      "updatedAt": "2026-07-13T20:52:27.575Z"
+    },
+    {
+      "id": "cli_1007",
+      "name": "Walk",
+      "whatsapp": "3331230000",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-13T20:52:27.624Z",
+      "updatedAt": "2026-07-13T20:52:27.624Z"
+    },
+    {
+      "id": "cli_1008",
+      "name": "Cliente Editado",
+      "whatsapp": "3331110001",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "Rojo",
+      "drinkChoice": "Café",
+      "timePreference": "",
+      "notes": "NOTES-REG",
+      "allergies": "ALG-REG",
+      "createdAt": "2026-07-14T01:39:03.735Z",
+      "updatedAt": "2026-07-14T01:39:03.903Z"
+    },
+    {
+      "id": "cli_1009",
+      "name": "Walk-in Manual",
+      "whatsapp": "3331110003",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-14T01:39:03.755Z",
+      "updatedAt": "2026-07-14T01:39:03.755Z"
+    },
+    {
+      "id": "cli_1010",
+      "name": "Rebook Test",
+      "whatsapp": "3331110004",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-14T01:39:03.816Z",
+      "updatedAt": "2026-07-14T01:39:03.816Z"
+    },
+    {
+      "id": "cli_1011",
+      "name": "Promo Cliente",
+      "whatsapp": "3331110009",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-14T01:39:03.829Z",
+      "updatedAt": "2026-07-14T01:39:03.829Z"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "apt_1001",
+      "folio": "BR-1001",
+      "clientId": "cli_1001",
+      "serviceId": "rusogelish",
+      "date": "2026-07-03",
+      "time": "10:00",
+      "status": "confirmed",
+      "createdAt": "2026-07-01T18:00:00.000Z",
+      "remindersSent": {},
+      "preferencesSnapshot": {
+        "styleChoice": "Natural elegante / french fino",
+        "colorChoice": "Nude rosado y blanco lechoso",
+        "drinkChoice": "Café americano",
+        "timePreference": "Mañanas entre 10:00 y 12:00",
+        "notes": "Prefiere uñas medianas, acabado limpio y sin mucha pedrería.",
+        "allergies": ""
+      },
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1002",
+      "folio": "BR-1002",
+      "clientId": "cli_1002",
+      "serviceId": "pedispa",
+      "date": "2026-07-03",
+      "time": "14:00",
+      "status": "new",
+      "createdAt": "2026-07-02T18:00:00.000Z",
+      "remindersSent": {},
+      "preferencesSnapshot": {
+        "styleChoice": "Pedicure clásico con gel",
+        "colorChoice": "Rojo vino",
+        "drinkChoice": "Té caliente",
+        "timePreference": "Tardes después de 14:00",
+        "notes": "",
+        "allergies": "Piel sensible, evitar exfoliante fuerte."
+      },
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1003",
+      "folio": "BR-1003",
+      "clientId": "cli_1003",
+      "serviceId": "ruso",
+      "date": "2026-09-30",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 350,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-13T01:43:08.655Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1004",
+      "folio": "BR-1004",
+      "clientId": "cli_1004",
+      "serviceId": "ruso",
+      "date": "2026-07-16",
+      "time": "11:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 315,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 35,
+        "originalPrice": 350
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-13T20:34:01.928Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1005",
+      "folio": "BR-1005",
+      "clientId": "cli_1005",
+      "serviceId": "ruso",
+      "date": "2026-07-16",
+      "time": "13:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 315,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 35,
+        "originalPrice": 350
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-13T20:34:02.012Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1006",
+      "folio": "BR-1006",
+      "clientId": "cli_1006",
+      "serviceId": "ruso",
+      "date": "2026-07-18",
+      "time": "11:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 315,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 35,
+        "originalPrice": 350
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-13T20:52:27.575Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1007",
+      "folio": "BR-1007",
+      "clientId": "cli_1007",
+      "serviceId": "ruso",
+      "date": "2026-07-18",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 315,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 35,
+        "originalPrice": 350
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-13T20:52:27.624Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1008",
+      "folio": "BR-1008",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1001",
+      "date": "2026-07-20",
+      "time": "11:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-14T01:39:03.735Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1009",
+      "folio": "BR-1009",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1001",
+      "date": "2026-07-20",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-14T01:39:03.755Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1010",
+      "folio": "BR-1010",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1001",
+      "date": "2026-07-20",
+      "time": "11:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-14T01:39:03.817Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1011",
+      "folio": "BR-1011",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1001",
+      "date": "2026-07-20",
+      "time": "13:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1002",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-14T01:39:03.829Z",
+      "googleEventId": null
+    }
+  ],
+  "posts": [],
+  "counters": {
+    "appointment": 1011,
+    "client": 1011,
+    "post": 1000,
+    "notification": 1011,
+    "promotion": 1002,
+    "course": 1002,
+    "registration": 1002,
+    "service": 1003,
+    "media": 1002,
+    "staff": 1002,
+    "clientPhoto": 1002
+  },
+  "notifications": [],
+  "promotions": [
+    {
+      "id": "promo_1001",
+      "code": "",
+      "label": "TEST",
+      "title": "Promo",
+      "note": "",
+      "type": "percent",
+      "value": 10,
+      "scope": "all",
+      "categoryValue": "",
+      "serviceIds": [],
+      "startDate": "",
+      "endDate": "",
+      "active": true,
+      "autoApply": true,
+      "usageLimit": 0,
+      "usageCount": 7,
+      "imageUrl": "/uploads/promo.jpg",
+      "createdAt": "2026-07-13T15:50:39.583Z",
+      "updatedAt": "2026-07-13T15:50:39.583Z"
+    }
+  ],
+  "courses": [
+    {
+      "id": "course_1001",
+      "title": "Curso Poligel",
+      "description": "",
+      "price": 2500,
+      "duration": "",
+      "level": "",
+      "imageUrls": [],
+      "capacity": 0,
+      "startDate": "",
+      "active": true,
+      "sort": 10,
+      "createdAt": "2026-07-13T22:12:12.157Z",
+      "updatedAt": "2026-07-13T22:12:12.157Z"
+    }
+  ],
+  "courseRegistrations": [
+    {
+      "id": "reg_1001",
+      "courseId": "course_1001",
+      "name": "Ana Test",
+      "whatsapp": "3331112222",
+      "email": "",
+      "notes": "",
+      "status": "new",
+      "createdAt": "2026-07-13T22:12:12.236Z"
+    }
+  ],
+  "media": [],
+  "staff": [
+    {
+      "id": "stf_1001",
+      "name": "Ana García",
+      "role": "Nail Artist",
+      "bio": "Experta en ruso",
+      "photoUrl": "/uploads/x.jpg",
+      "instagram": "",
+      "active": true,
+      "sort": 10,
+      "createdAt": "2026-07-13T15:50:39.508Z",
+      "updatedAt": "2026-07-13T15:50:39.508Z"
+    }
+  ],
+  "clientPhotos": [
+    {
+      "id": "cph_1001",
+      "clientId": "cli_1003",
+      "appointmentId": null,
+      "url": "/uploads/hand.jpg",
+      "note": "resultado",
+      "phase": "after",
+      "createdAt": "2026-07-13T15:50:39.713Z"
+    }
+  ]
+}

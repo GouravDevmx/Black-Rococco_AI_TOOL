@@ -1,0 +1,10 @@
+{
+  "name": "Black Rococo",
+  "short_name": "Black Rococo",
+  "description": "Estudio profesional de uñas en Zapopan",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E9E3D6",
+  "theme_color": "#E9E3D6",
+  "icons": []
+}
