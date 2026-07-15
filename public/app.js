@@ -73,6 +73,7 @@ const state = {
     clientPhotoUploading: false,
     aboutUsDraft: null,
     aboutUsUploading: false,
+    homepageDraft: null,
     promoImageDraft: '',
     clientSearch: '',
     agendaView: 'daily',
@@ -433,7 +434,8 @@ function profileSummary(c = {}) {
   return parts.length ? parts.join(' · ') : 'Sin preferencias registradas';
 }
 
-function whatsappChatUrl(message = 'Hola Black Rococo, quiero información para agendar una cita ✨') {
+function whatsappChatUrl(message) {
+  if (!message) message = state.salonConfig?.homepage?.whatsappMessage || 'Hola, quiero información para agendar una cita ✨';
   const base = state.config?.contact?.whatsappUrl || 'https://api.whatsapp.com/send/?phone=5213326553522';
   const phone = (base.match(/phone=([^&]+)/) || [])[1] || '5213326553522';
   return `https://api.whatsapp.com/send/?phone=${phone}&text=${encodeURIComponent(message)}`;
@@ -1504,6 +1506,16 @@ function serviceButton(s, detailed = false) {
 
 function homeScreen() {
   const c = state.config;
+  const hp = state.salonConfig?.homepage || {};
+  const heroConf = hp.hero || {};
+  const spConf = hp.socialProof || {};
+  const svcConf = hp.servicesSection || {};
+  const whyConf = hp.whyUs || {};
+  const expConf = hp.experience || {};
+  const galConf = hp.gallerySection || {};
+  const ctaConf = hp.contactCta || {};
+  const ftConf = hp.footer || {};
+
   const carouselMedia = (state.media?.carousel || []).slice(0, 10);
   const galleryMedia = (state.media?.gallery || []).slice(0, 10);
   const heroImages = (state.salonConfig?.heroImages || []).filter(h => h.url);
@@ -1514,6 +1526,7 @@ function homeScreen() {
   state.aboutImagesCache = aboutImages;
   const team = state.staff || [];
   const rating = c.brand.rating || '4.9';
+  const brandName = c.brand.name || 'Black Rococo';
 
   const whatsappNum = (c.contact?.whatsappNumber || '').replace(/\D/g, '') || '5213326553522';
   const socialLinks = [
@@ -1534,31 +1547,68 @@ function homeScreen() {
 
   const igTiles = (galleryMedia.length ? galleryMedia : carouselMedia).slice(0, 10);
 
+  // Trust pills — configurable from admin or fallback defaults
+  const trustPills = (hp.trustPills && hp.trustPills.length)
+    ? hp.trustPills
+    : [
+        { icon: '★', text: `${rating} en Google` },
+        { icon: '◇', text: 'Materiales premium' },
+        { icon: '✧', text: 'Técnicas certificadas' }
+      ];
+
+  // Stats — configurable from admin or fallback defaults
+  const stats = (spConf.stats && spConf.stats.length)
+    ? spConf.stats
+    : [
+        { figure: rating, label: 'Calificación Google' },
+        { figure: '+500', label: 'Clientas atendidas' },
+        { figure: '6', label: 'Años de práctica' },
+        { figure: '3–4', label: 'Semanas de duración' }
+      ];
+
+  // Why Us items — configurable from admin
+  const whyItems = (whyConf.items && whyConf.items.length)
+    ? whyConf.items
+    : [
+        { title: 'Técnica rusa en seco', text: 'Sin agua y sin cortes. La cutícula se retira con torno, con una precisión que el acabado delata.' },
+        { title: 'Esterilización verificable', text: 'Instrumental metálico esterilizado entre clientas. Limas y porosos, de un solo uso. Sin excepción.' },
+        { title: 'Duración real de 3 a 4 semanas', text: 'No es una promesa de marketing: es la consecuencia de una preparación bien hecha.' },
+        { title: 'Una clienta a la vez', text: 'Trabajamos con cita para dedicarte el servicio completo, sin prisa y sin sala de espera.' }
+      ];
+
+  // Experience steps — configurable from admin
+  const steps = (expConf.steps && expConf.steps.length)
+    ? expConf.steps
+    : [
+        { num: '01', name: 'Reservas', text: 'Eliges servicio, día y hora en línea. Menos de un minuto.' },
+        { num: '02', name: 'Te recibimos', text: 'Una clienta a la vez, en un estudio privado y sin sala de espera.' },
+        { num: '03', name: 'El trabajo', text: 'Preparación en seco, acabado impecable y materiales premium.' },
+        { num: '04', name: 'Vuelves', text: 'Tres a cuatro semanas después. Te recordamos por WhatsApp.' }
+      ];
+
   return `<section class="screen lux">
 
-    <!-- ═══ HERO — light, editorial, two columns ═══ -->
+    <!-- ═══ HERO ═══ -->
     <header class="hero">
       <div class="hero-dots" aria-hidden="true"></div>
       <div class="hero-grid">
         <div class="hero-content fade-up">
-          <div class="eyebrow">Estudio de uñas de lujo · Guadalajara</div>
-          <h1 class="h1">Donde la elegancia se encuentra con el <em>arte</em></h1>
-          <p class="lead">Black Rococo es un atelier de uñas en Ciudad Granja, Zapopan. Precisión, materiales de grado profesional y diseño a medida, en un espacio pensado para una clienta a la vez.</p>
+          <div class="eyebrow">${esc(heroConf.eyebrow || c.brand.tagline || 'Estudio de uñas de lujo')}</div>
+          <h1 class="h1">${esc(heroConf.headline || c.brand.heroTitle || 'Donde la elegancia se encuentra con el arte')}</h1>
+          <p class="lead">${esc(heroConf.lead || c.brand.heroSubtitle || '')}</p>
           <div class="hero-actions">
-            <button class="btn-primary" data-tab="reservar">Reservar mi cita</button>
-            <button class="btn-secondary" data-tab="galeria">Ver nuestro trabajo</button>
+            <button class="btn-primary" data-tab="reservar">${esc(heroConf.ctaPrimary || 'Reservar mi cita')}</button>
+            <button class="btn-secondary" data-tab="galeria">${esc(heroConf.ctaSecondary || 'Ver nuestro trabajo')}</button>
           </div>
           <div class="trust-row">
-            <span class="trust-pill"><span class="tp-mark">★</span> ${esc(rating)} en Google</span>
-            <span class="trust-pill"><span class="tp-mark">◇</span> Materiales premium</span>
-            <span class="trust-pill"><span class="tp-mark">✧</span> Técnicas certificadas</span>
+            ${trustPills.map(p => `<span class="trust-pill"><span class="tp-mark">${esc(p.icon)}</span> ${esc(p.text)}</span>`).join('')}
           </div>
         </div>
 
         <div class="hero-art fade-up" data-delay="250">
           ${heroImages.length
             ? `<div class="hero-art-frame">${autoCarousel(heroImages.map(h => h.url), {
-                 alt: 'Uñas realizadas en Black Rococo, Zapopan',
+                 alt: esc(brandName),
                  className: 'ac-fill', eager: true
                })}</div>`
             : `<div class="hero-art-frame">${nailArtSvg()}</div>`}
@@ -1568,16 +1618,13 @@ function homeScreen() {
       </div>
     </header>
 
-    <!-- ═══ SOCIAL PROOF — ivory ═══ -->
+    <!-- ═══ SOCIAL PROOF ═══ -->
     <section class="section section-ivory">
       <div class="section-inner center fade-up">
-        <div class="eyebrow">La confianza se gana</div>
+        <div class="eyebrow">${esc(spConf.eyebrow || 'La confianza se gana')}</div>
         ${goldDivider()}
         <div class="stats-grid">
-          <div class="stat"><div class="stat-figure">${esc(rating)}</div><div class="stat-label">Calificación Google</div></div>
-          <div class="stat"><div class="stat-figure">+500</div><div class="stat-label">Clientas atendidas</div></div>
-          <div class="stat"><div class="stat-figure">6</div><div class="stat-label">Años de práctica</div></div>
-          <div class="stat"><div class="stat-figure">3–4</div><div class="stat-label">Semanas de duración</div></div>
+          ${stats.map(s => `<div class="stat"><div class="stat-figure">${esc(s.figure)}</div><div class="stat-label">${esc(s.label)}</div></div>`).join('')}
         </div>
         ${testimonialCarousel()}
       </div>
@@ -1587,38 +1634,35 @@ function homeScreen() {
     <section class="section" id="servicios">
       <div class="section-inner">
         <div class="section-head center fade-up">
-          <div class="eyebrow">Servicios insignia</div>
+          <div class="eyebrow">${esc(svcConf.eyebrow || 'Servicios insignia')}</div>
           ${goldDivider()}
-          <h2 class="h2">Tres técnicas que definen la casa</h2>
-          <p class="lead center-lead">Cada servicio se realiza con instrumental esterilizado y materiales de grado profesional. El tiempo que toma es el tiempo que requiere.</p>
+          <h2 class="h2">${esc(svcConf.title || 'Nuestros servicios principales')}</h2>
+          <p class="lead center-lead">${esc(svcConf.subtitle || '')}</p>
         </div>
         <div class="service-grid">
           ${signature.map((sv, i) => luxServiceCard(sv, i)).join('')}
         </div>
         <div class="center fade-up" style="margin-top:48px">
-          <button class="btn-secondary" data-tab="servicios">Ver la carta completa</button>
+          <button class="btn-secondary" data-tab="servicios">${esc(svcConf.ctaText || 'Ver la carta completa')}</button>
         </div>
       </div>
     </section>
 
     ${promoBanner()}
 
-    <!-- ═══ WHY BLACK ROCOCO — black ═══ -->
+    <!-- ═══ WHY US ═══ -->
     <section class="section section-black" id="nosotros">
       <div class="section-inner">
         <div class="why-grid">
           <div class="fade-up">
-            <div class="eyebrow eyebrow-gold">Por qué Black Rococo</div>
+            <div class="eyebrow eyebrow-gold">${esc(whyConf.eyebrow || 'Por qué ' + brandName)}</div>
             ${goldDivider()}
-            <h2 class="h2 on-dark">Lo que justifica el precio</h2>
-            <p class="lead on-dark">${esc(about.text || 'No competimos por precio. Competimos por acabado, por higiene y por el tiempo que le dedicamos a cada clienta.')}</p>
-            <button class="btn-secondary dark" data-tab="reservar" style="margin-top:28px">Reservar mi cita</button>
+            <h2 class="h2 on-dark">${esc(whyConf.title || 'Lo que justifica el precio')}</h2>
+            <p class="lead on-dark">${esc(whyConf.lead || about.text || '')}</p>
+            <button class="btn-secondary dark" data-tab="reservar" style="margin-top:28px">${esc(whyConf.ctaText || 'Reservar mi cita')}</button>
           </div>
           <ul class="why-list fade-up" data-delay="150">
-            <li><span class="why-mark" aria-hidden="true"></span><div><strong>Técnica rusa en seco</strong><p>Sin agua y sin cortes. La cutícula se retira con torno, con una precisión que el acabado delata.</p></div></li>
-            <li><span class="why-mark" aria-hidden="true"></span><div><strong>Esterilización verificable</strong><p>Instrumental metálico esterilizado entre clientas. Limas y porosos, de un solo uso. Sin excepción.</p></div></li>
-            <li><span class="why-mark" aria-hidden="true"></span><div><strong>Duración real de 3 a 4 semanas</strong><p>No es una promesa de marketing: es la consecuencia de una preparación bien hecha.</p></div></li>
-            <li><span class="why-mark" aria-hidden="true"></span><div><strong>Una clienta a la vez</strong><p>Trabajamos con cita para dedicarte el servicio completo, sin prisa y sin sala de espera.</p></div></li>
+            ${whyItems.map(it => `<li><span class="why-mark" aria-hidden="true"></span><div><strong>${esc(it.title)}</strong><p>${esc(it.text)}</p></div></li>`).join('')}
           </ul>
         </div>
       </div>
@@ -1628,33 +1672,30 @@ function homeScreen() {
     <section class="section" id="galeria">
       <div class="section-inner">
         <div class="section-head center fade-up">
-          <div class="eyebrow">El trabajo</div>
+          <div class="eyebrow">${esc(galConf.eyebrow || 'El trabajo')}</div>
           ${goldDivider()}
-          <h2 class="h2">Resultados reales, sin retoque</h2>
+          <h2 class="h2">${esc(galConf.title || 'Resultados reales')}</h2>
         </div>
         ${igTiles.length ? `<div class="ig-grid fade-up">
           ${igTiles.map((m, i) => `<button class="ig-tile" data-lightbox-open="${i}" aria-label="Ver foto">
-            <img src="${esc(m.url)}" alt="${esc(m.title || m.category || 'Diseño de uñas en Black Rococo, Zapopan')}" loading="lazy">
+            <img src="${esc(m.url)}" alt="${esc(m.title || m.category || brandName)}" loading="lazy">
             <span class="ig-overlay" aria-hidden="true">${socialIconSvg('instagram')}</span>
           </button>`).join('')}
         </div>` : ''}
         <div class="center fade-up" style="margin-top:40px">
-          <button class="btn-secondary" data-tab="galeria">Ver la galería completa</button>
+          <button class="btn-secondary" data-tab="galeria">${esc(galConf.ctaText || 'Ver la galería completa')}</button>
         </div>
       </div>
     </section>
 
-    <!-- ═══ EXPERIENCE / STEPS — ivory ═══ -->
+    <!-- ═══ EXPERIENCE / STEPS ═══ -->
     <section class="section section-ivory">
       <div class="section-inner center fade-up">
-        <div class="eyebrow">La experiencia</div>
+        <div class="eyebrow">${esc(expConf.eyebrow || 'La experiencia')}</div>
         ${goldDivider()}
-        <h2 class="h2">Cómo funciona</h2>
+        <h2 class="h2">${esc(expConf.title || 'Cómo funciona')}</h2>
         <div class="steps-row">
-          <div class="step"><div class="step-num">01</div><div class="step-name">Reservas</div><p>Eliges servicio, día y hora en línea. Menos de un minuto.</p></div>
-          <div class="step"><div class="step-num">02</div><div class="step-name">Te recibimos</div><p>Una clienta a la vez, en un estudio privado y sin sala de espera.</p></div>
-          <div class="step"><div class="step-num">03</div><div class="step-name">El trabajo</div><p>Preparación en seco, acabado impecable y materiales premium.</p></div>
-          <div class="step"><div class="step-num">04</div><div class="step-name">Vuelves</div><p>Tres a cuatro semanas después. Te recordamos por WhatsApp.</p></div>
+          ${steps.map(st => `<div class="step"><div class="step-num">${esc(st.num)}</div><div class="step-name">${esc(st.name)}</div><p>${esc(st.text)}</p></div>`).join('')}
         </div>
       </div>
     </section>
@@ -1670,7 +1711,7 @@ function homeScreen() {
         <div class="team-grid fade-up">
           ${team.map(m => `<figure class="team-card">
             ${m.photoUrl
-              ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}, técnica en Black Rococo" loading="lazy">`
+              ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}" loading="lazy">`
               : `<div class="team-photo team-photo-empty" aria-hidden="true">${esc((m.name || '?').charAt(0))}</div>`}
             <figcaption>
               <div class="team-name">${esc(m.name)}</div>
@@ -1682,16 +1723,16 @@ function homeScreen() {
       </div>
     </section>` : ''}
 
-    <!-- ═══ CONTACT / CLOSE — black ═══ -->
+    <!-- ═══ CONTACT / CLOSE ═══ -->
     <section class="section section-black" id="contacto">
       <div class="section-inner center fade-up">
-        <div class="eyebrow eyebrow-gold">Reserva</div>
+        <div class="eyebrow eyebrow-gold">${esc(ctaConf.eyebrow || 'Reserva')}</div>
         ${goldDivider()}
-        <h2 class="h2 on-dark">La agenda es limitada por diseño</h2>
-        <p class="lead on-dark center-lead">Atendemos a una clienta a la vez. Reserva con anticipación.</p>
+        <h2 class="h2 on-dark">${esc(ctaConf.title || 'Reserva tu cita')}</h2>
+        <p class="lead on-dark center-lead">${esc(ctaConf.subtitle || '')}</p>
         <div class="hero-actions center-actions">
-          <button class="btn-primary gold" data-tab="reservar">Reservar mi cita</button>
-          <a class="btn-secondary dark" href="${esc(whatsappChatUrl())}" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+          <button class="btn-primary gold" data-tab="reservar">${esc(ctaConf.ctaPrimary || 'Reservar mi cita')}</button>
+          <a class="btn-secondary dark" href="${esc(whatsappChatUrl())}" target="_blank" rel="noopener">${esc(ctaConf.ctaSecondary || 'Escribir por WhatsApp')}</a>
         </div>
         <div class="contact-detail">
           <p>${esc(c.contact.address1 || '')}${c.contact.address2 ? `<br>${esc(c.contact.address2)}` : ''}</p>
@@ -1699,7 +1740,7 @@ function homeScreen() {
         </div>
         ${mapsEmbedSrc ? `<div class="map-embed">
           <iframe src="${esc(mapsEmbedSrc)}" width="100%" height="320" style="border:0" allowfullscreen=""
-            loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Black Rococo en Google Maps"></iframe>
+            loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="${esc(brandName)} en Google Maps"></iframe>
         </div>` : ''}
       </div>
     </section>
@@ -1709,8 +1750,8 @@ function homeScreen() {
       <div class="section-inner">
         <div class="footer-grid">
           <div>
-            <div class="footer-mark">${esc(c.brand.name || 'BLACK ROCOCO')}</div>
-            <p class="footer-note">Atelier de uñas en Ciudad Granja, Zapopan. Manicura rusa, poligel y diseño a medida.</p>
+            <div class="footer-mark">${esc(brandName)}</div>
+            <p class="footer-note">${esc(ftConf.description || c.brand.tagline || '')}</p>
             ${socialLinks.length ? `<div class="footer-social">
               ${socialLinks.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener" aria-label="${esc(l.name)}">${l.icon}</a>`).join('')}
             </div>` : ''}
@@ -1732,7 +1773,7 @@ function homeScreen() {
             ${c.contact.instagramUrl ? `<a class="footer-link" href="${esc(c.contact.instagramUrl)}" target="_blank" rel="noopener">Instagram</a>` : ''}
           </div>
         </div>
-        <div class="footer-fine">${esc(c.brand.footer || '© Black Rococo · Zapopan, Jalisco')}</div>
+        <div class="footer-fine">${esc(c.brand.footer || '© ' + brandName)}</div>
       </div>
     </footer>
 
@@ -1748,11 +1789,14 @@ function goldDivider(w = '80px') {
 // Rotating client quotes. Real social proof, presented without a star-rating
 // graphic — the words do more work than the stars.
 function testimonialCarousel() {
-  const reviews = [
-    { text: 'La atención al detalle es excepcional. Cada visita va más allá de un simple servicio de uñas.', author: 'María G.', role: 'Clienta frecuente' },
-    { text: 'Mis uñas para la boda quedaron perfectas. Entendieron mi visión desde la primera consulta.', author: 'Ana L.', role: 'Novia' },
-    { text: 'Después de probar varios salones en Guadalajara, es el único donde siento que cuidan cada detalle.', author: 'Sofía R.', role: 'Reseña de Google' }
-  ];
+  const hp = state.salonConfig?.homepage || {};
+  const reviews = (hp.testimonials && hp.testimonials.length)
+    ? hp.testimonials
+    : [
+        { text: 'La atención al detalle es excepcional. Cada visita va más allá de un simple servicio de uñas.', author: 'María G.', role: 'Clienta frecuente' },
+        { text: 'Mis uñas para la boda quedaron perfectas. Entendieron mi visión desde la primera consulta.', author: 'Ana L.', role: 'Novia' },
+        { text: 'Después de probar varios salones en Guadalajara, es el único donde siento que cuidan cada detalle.', author: 'Sofía R.', role: 'Reseña de Google' }
+      ];
   return `<div class="review-carousel auto-carousel" data-ac-autoplay data-ac-index="0">
     <div class="ac-viewport review-viewport">
       ${reviews.map((r, i) => `<blockquote class="ac-slide review-card ${i === 0 ? 'active' : ''}">
@@ -2966,6 +3010,171 @@ async function saveAboutUs() {
   render();
 }
 
+// ===== HOMEPAGE CONTENT EDITOR =====
+function adminHomepageEditor() {
+  const hp = state.admin.homepageDraft || state.salonConfig?.homepage || {};
+  // Lazily initialize the draft on first render
+  if (!state.admin.homepageDraft) {
+    state.admin.homepageDraft = JSON.parse(JSON.stringify(hp));
+  }
+  const d = state.admin.homepageDraft;
+  const hero = d.hero || {};
+  const spf = d.socialProof || {};
+  const svcS = d.servicesSection || {};
+  const whyU = d.whyUs || {};
+  const exp = d.experience || {};
+  const galS = d.gallerySection || {};
+  const ctaC = d.contactCta || {};
+  const ft = d.footer || {};
+  const saving = state.admin.configSaving;
+
+  // Helper for repeatable item lists (testimonials, why items, steps, stats, trust pills)
+  const itemList = (label, key, fields, maxItems = 10) => {
+    const items = d[key] || [];
+    return `<div class="form-field">
+      <label>${label}</label>
+      ${items.map((it, i) => `<div class="card" style="margin-bottom:8px;padding:10px">
+        ${fields.map(f => `<div class="form-field" style="margin-bottom:6px">
+          <label style="font-size:12px">${f.label} #${i+1}</label>
+          <input value="${esc(it[f.key] || '')}" data-hp-item="${key}" data-hp-item-idx="${i}" data-hp-item-field="${f.key}" placeholder="${esc(f.placeholder || '')}">
+        </div>`).join('')}
+        <button type="button" class="pill-button" style="color:var(--red);font-size:12px" data-hp-remove-item="${key}" data-hp-remove-idx="${i}">ELIMINAR</button>
+      </div>`).join('')}
+      ${items.length < maxItems ? `<button type="button" class="btn btn-outline btn-small" data-hp-add-item="${key}">+ AGREGAR</button>` : ''}
+    </div>`;
+  };
+
+  // Nested object items (e.g. whyUs.items, experience.steps)
+  const nestedItemList = (label, parentKey, childKey, fields, maxItems = 10) => {
+    const parent = d[parentKey] || {};
+    const items = parent[childKey] || [];
+    return `<div class="form-field">
+      <label>${label}</label>
+      ${items.map((it, i) => `<div class="card" style="margin-bottom:8px;padding:10px">
+        ${fields.map(f => `<div class="form-field" style="margin-bottom:6px">
+          <label style="font-size:12px">${f.label} #${i+1}</label>
+          ${f.type === 'textarea'
+            ? `<textarea rows="2" data-hp-nested="${parentKey}" data-hp-nested-child="${childKey}" data-hp-nested-idx="${i}" data-hp-nested-field="${f.key}" placeholder="${esc(f.placeholder || '')}">${esc(it[f.key] || '')}</textarea>`
+            : `<input value="${esc(it[f.key] || '')}" data-hp-nested="${parentKey}" data-hp-nested-child="${childKey}" data-hp-nested-idx="${i}" data-hp-nested-field="${f.key}" placeholder="${esc(f.placeholder || '')}">`}
+        </div>`).join('')}
+        <button type="button" class="pill-button" style="color:var(--red);font-size:12px" data-hp-remove-nested="${parentKey}" data-hp-remove-nested-child="${childKey}" data-hp-remove-nested-idx="${i}">ELIMINAR</button>
+      </div>`).join('')}
+      ${items.length < maxItems ? `<button type="button" class="btn btn-outline btn-small" data-hp-add-nested="${parentKey}" data-hp-add-nested-child="${childKey}">+ AGREGAR</button>` : ''}
+    </div>`;
+  };
+
+  return `<div class="card">
+    <div class="eyebrow">CONTENIDO DE LA PÁGINA DE INICIO</div>
+    <div class="subtitle" style="margin-bottom:16px">Edita todos los textos, estadísticas y secciones que aparecen en la página principal del sitio. Al guardar, el sitio público se actualiza al instante.</div>
+
+    <details class="config-section" open>
+      <summary class="config-section-title">🏠 Hero (encabezado principal)</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow (línea superior)</label><input value="${esc(hero.eyebrow || '')}" data-hp-field="hero.eyebrow" placeholder="Estudio de uñas de lujo · Guadalajara"></div>
+        <div class="form-field"><label>Titular principal</label><input value="${esc(hero.headline || '')}" data-hp-field="hero.headline" placeholder="Donde la elegancia se encuentra con el arte"></div>
+      </div>
+      <div class="form-field"><label>Párrafo descriptivo</label><textarea rows="3" data-hp-field="hero.lead" placeholder="Descripción del negocio que aparece debajo del titular...">${esc(hero.lead || '')}</textarea></div>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Botón principal</label><input value="${esc(hero.ctaPrimary || '')}" data-hp-field="hero.ctaPrimary" placeholder="Reservar mi cita"></div>
+        <div class="form-field"><label>Botón secundario</label><input value="${esc(hero.ctaSecondary || '')}" data-hp-field="hero.ctaSecondary" placeholder="Ver nuestro trabajo"></div>
+      </div>
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">🏅 Sellos de confianza (trust pills)</summary>
+      ${itemList('Sellos que aparecen debajo del hero', 'trustPills', [
+        { key: 'icon', label: 'Icono', placeholder: '★ ◇ ✧ ♥' },
+        { key: 'text', label: 'Texto', placeholder: '4.9 en Google' }
+      ], 6)}
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">📊 Prueba social (estadísticas)</summary>
+      <div class="form-field"><label>Eyebrow de la sección</label><input value="${esc(spf.eyebrow || '')}" data-hp-field="socialProof.eyebrow" placeholder="La confianza se gana"></div>
+      ${nestedItemList('Estadísticas destacadas', 'socialProof', 'stats', [
+        { key: 'figure', label: 'Cifra', placeholder: '+500' },
+        { key: 'label', label: 'Etiqueta', placeholder: 'Clientas atendidas' }
+      ], 6)}
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">💬 Testimonios</summary>
+      ${itemList('Reseñas de clientas', 'testimonials', [
+        { key: 'text', label: 'Reseña', placeholder: 'La atención al detalle es excepcional...' },
+        { key: 'author', label: 'Autora', placeholder: 'María G.' },
+        { key: 'role', label: 'Rol', placeholder: 'Clienta frecuente' }
+      ], 10)}
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">💅 Sección de servicios insignia</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow</label><input value="${esc(svcS.eyebrow || '')}" data-hp-field="servicesSection.eyebrow" placeholder="Servicios insignia"></div>
+        <div class="form-field"><label>Título</label><input value="${esc(svcS.title || '')}" data-hp-field="servicesSection.title" placeholder="Nuestros servicios principales"></div>
+      </div>
+      <div class="form-field"><label>Subtítulo</label><textarea rows="2" data-hp-field="servicesSection.subtitle" placeholder="Cada servicio se realiza con instrumental esterilizado...">${esc(svcS.subtitle || '')}</textarea></div>
+      <div class="form-field"><label>Texto del botón</label><input value="${esc(svcS.ctaText || '')}" data-hp-field="servicesSection.ctaText" placeholder="Ver la carta completa"></div>
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">✨ Sección "Por qué nosotros"</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow</label><input value="${esc(whyU.eyebrow || '')}" data-hp-field="whyUs.eyebrow" placeholder="Por qué Black Rococo"></div>
+        <div class="form-field"><label>Título</label><input value="${esc(whyU.title || '')}" data-hp-field="whyUs.title" placeholder="Lo que justifica el precio"></div>
+      </div>
+      <div class="form-field"><label>Párrafo descriptivo</label><textarea rows="3" data-hp-field="whyUs.lead" placeholder="No competimos por precio...">${esc(whyU.lead || '')}</textarea></div>
+      <div class="form-field"><label>Texto del botón</label><input value="${esc(whyU.ctaText || '')}" data-hp-field="whyUs.ctaText" placeholder="Reservar mi cita"></div>
+      ${nestedItemList('Puntos diferenciadores', 'whyUs', 'items', [
+        { key: 'title', label: 'Título', placeholder: 'Técnica rusa en seco' },
+        { key: 'text', label: 'Descripción', placeholder: 'Sin agua y sin cortes...', type: 'textarea' }
+      ], 8)}
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">🔄 Sección "Cómo funciona" (pasos)</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow</label><input value="${esc(exp.eyebrow || '')}" data-hp-field="experience.eyebrow" placeholder="La experiencia"></div>
+        <div class="form-field"><label>Título</label><input value="${esc(exp.title || '')}" data-hp-field="experience.title" placeholder="Cómo funciona"></div>
+      </div>
+      ${nestedItemList('Pasos del proceso', 'experience', 'steps', [
+        { key: 'num', label: 'Número', placeholder: '01' },
+        { key: 'name', label: 'Nombre', placeholder: 'Reservas' },
+        { key: 'text', label: 'Descripción', placeholder: 'Eliges servicio, día y hora...', type: 'textarea' }
+      ], 8)}
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">📸 Sección de galería (inicio)</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow</label><input value="${esc(galS.eyebrow || '')}" data-hp-field="gallerySection.eyebrow" placeholder="El trabajo"></div>
+        <div class="form-field"><label>Título</label><input value="${esc(galS.title || '')}" data-hp-field="gallerySection.title" placeholder="Resultados reales"></div>
+      </div>
+      <div class="form-field"><label>Texto del botón</label><input value="${esc(galS.ctaText || '')}" data-hp-field="gallerySection.ctaText" placeholder="Ver la galería completa"></div>
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">📞 Sección de contacto / CTA final</summary>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Eyebrow</label><input value="${esc(ctaC.eyebrow || '')}" data-hp-field="contactCta.eyebrow" placeholder="Reserva"></div>
+        <div class="form-field"><label>Título</label><input value="${esc(ctaC.title || '')}" data-hp-field="contactCta.title" placeholder="Reserva tu cita"></div>
+      </div>
+      <div class="form-field"><label>Subtítulo</label><input value="${esc(ctaC.subtitle || '')}" data-hp-field="contactCta.subtitle" placeholder="Atendemos a una clienta a la vez..."></div>
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Botón principal</label><input value="${esc(ctaC.ctaPrimary || '')}" data-hp-field="contactCta.ctaPrimary" placeholder="Reservar mi cita"></div>
+        <div class="form-field"><label>Botón secundario</label><input value="${esc(ctaC.ctaSecondary || '')}" data-hp-field="contactCta.ctaSecondary" placeholder="Escribir por WhatsApp"></div>
+      </div>
+    </details>
+
+    <details class="config-section">
+      <summary class="config-section-title">📝 Footer y WhatsApp</summary>
+      <div class="form-field"><label>Descripción del footer</label><textarea rows="2" data-hp-field="footer.description" placeholder="Atelier de uñas en Ciudad Granja, Zapopan...">${esc(ft.description || '')}</textarea></div>
+      <div class="form-field"><label>Mensaje predeterminado de WhatsApp</label><input value="${esc(d.whatsappMessage || '')}" data-hp-field="whatsappMessage" placeholder="Hola, quiero información para agendar una cita ✨"></div>
+    </details>
+
+    <button class="btn btn-primary" style="margin-top:16px" data-save-homepage ${saving ? 'disabled' : ''}>${saving ? 'GUARDANDO...' : 'GUARDAR CONTENIDO DE INICIO'}</button>
+  </div>`;
+}
+
 function adminConfiguracion(data) {
   const cfg = state.admin.configDraft || state.salonConfig || {};
   const brand = state.config?.brand || {};
@@ -2973,7 +3182,6 @@ function adminConfiguracion(data) {
   const booking = state.config?.booking || {};
   const saving = state.admin.configSaving;
   // Hero images are edited live against state.salonConfig (single source of truth).
-  // Rendering them from configDraft would desync them from the click/input handlers.
   if (!state.salonConfig) state.salonConfig = {};
   if (!Array.isArray(state.salonConfig.heroImages)) state.salonConfig.heroImages = [];
   const heroImages = state.salonConfig.heroImages;
@@ -2988,6 +3196,7 @@ function adminConfiguracion(data) {
 
   return `<div class="card-list">
     ${state.admin.configSuccess ? `<div class="success-inline">${esc(state.admin.configSuccess)}</div>` : ''}
+    ${adminHomepageEditor()}
     ${aboutUsEditor(data)}
     <div class="card">
       <div class="eyebrow">MARCA</div>
@@ -3079,6 +3288,28 @@ function adminConfiguracion(data) {
       </div>
     </div>
   </div>`;
+}
+
+async function saveHomepage() {
+  const d = state.admin.homepageDraft;
+  if (!d) return;
+  state.admin.configSaving = true;
+  state.admin.error = '';
+  state.admin.configSuccess = '';
+  render();
+  try {
+    await api('/api/admin/settings/homepage', { method: 'POST', body: d });
+    await refreshPublicConfig();
+    await loadAdminDashboard();
+    // Re-sync the draft with saved data
+    state.admin.homepageDraft = JSON.parse(JSON.stringify(state.salonConfig?.homepage || {}));
+    state.admin.configSuccess = '✓ Contenido de la página de inicio guardado correctamente.';
+    setTimeout(() => { state.admin.configSuccess = ''; render(); }, 4000);
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  state.admin.configSaving = false;
+  render();
 }
 
 async function saveSettings(section, formData) {
@@ -3316,6 +3547,45 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.hasAttribute('data-save-hero-images')) return saveHeroImages();
+  if (target.hasAttribute('data-save-homepage')) return saveHomepage();
+
+  // Homepage content editor: add/remove items in flat lists (trustPills, testimonials)
+  if (target.dataset.hpAddItem) {
+    const key = target.dataset.hpAddItem;
+    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
+    if (!Array.isArray(state.admin.homepageDraft[key])) state.admin.homepageDraft[key] = [];
+    const defaults = { trustPills: { icon: '★', text: '' }, testimonials: { text: '', author: '', role: '' } };
+    state.admin.homepageDraft[key].push(defaults[key] || {});
+    return render();
+  }
+  if (target.dataset.hpRemoveItem) {
+    const key = target.dataset.hpRemoveItem;
+    const idx = Number(target.dataset.hpRemoveIdx);
+    if (state.admin.homepageDraft?.[key]) state.admin.homepageDraft[key].splice(idx, 1);
+    return render();
+  }
+  // Nested items (socialProof.stats, whyUs.items, experience.steps)
+  if (target.dataset.hpAddNested) {
+    const pKey = target.dataset.hpAddNested;
+    const cKey = target.dataset.hpAddNestedChild;
+    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
+    if (!state.admin.homepageDraft[pKey]) state.admin.homepageDraft[pKey] = {};
+    if (!Array.isArray(state.admin.homepageDraft[pKey][cKey])) state.admin.homepageDraft[pKey][cKey] = [];
+    const defaults = {
+      stats: { figure: '', label: '' },
+      items: { title: '', text: '' },
+      steps: { num: String(state.admin.homepageDraft[pKey][cKey].length + 1).padStart(2, '0'), name: '', text: '' }
+    };
+    state.admin.homepageDraft[pKey][cKey].push(defaults[cKey] || {});
+    return render();
+  }
+  if (target.dataset.hpRemoveNested) {
+    const pKey = target.dataset.hpRemoveNested;
+    const cKey = target.dataset.hpRemoveNestedChild;
+    const idx = Number(target.dataset.hpRemoveNestedIdx);
+    if (state.admin.homepageDraft?.[pKey]?.[cKey]) state.admin.homepageDraft[pKey][cKey].splice(idx, 1);
+    return render();
+  }
 
   // Staff
   if (target.dataset.editStaff) {
@@ -3398,6 +3668,7 @@ app.addEventListener('click', async event => {
     if (state.admin.tab === 'integraciones') loadGoogleCalendarStatus();
     if (state.admin.tab === 'configuracion') {
       state.admin.configDraft = JSON.parse(JSON.stringify(state.salonConfig || {}));
+      state.admin.homepageDraft = JSON.parse(JSON.stringify(state.salonConfig?.homepage || {}));
     }
     return render();
   }
@@ -3515,6 +3786,36 @@ app.addEventListener('input', event => {
   if (el.dataset.aboutField && state.admin.aboutUsDraft) state.admin.aboutUsDraft[el.dataset.aboutField] = el.value;
   if (el.dataset.academiaField) state.academia[el.dataset.academiaField] = el.value;
   if (el.hasAttribute('data-rebook-whatsapp')) state.booking.rebook.whatsapp = el.value;
+  // Homepage content editor — dot-path fields like "hero.eyebrow"
+  if (el.dataset.hpField) {
+    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
+    const path = el.dataset.hpField.split('.');
+    if (path.length === 1) {
+      state.admin.homepageDraft[path[0]] = el.value;
+    } else {
+      if (!state.admin.homepageDraft[path[0]]) state.admin.homepageDraft[path[0]] = {};
+      state.admin.homepageDraft[path[0]][path[1]] = el.value;
+    }
+  }
+  // Flat item lists (trustPills, testimonials)
+  if (el.dataset.hpItem) {
+    const key = el.dataset.hpItem;
+    const idx = Number(el.dataset.hpItemIdx);
+    const field = el.dataset.hpItemField;
+    if (state.admin.homepageDraft?.[key]?.[idx]) {
+      state.admin.homepageDraft[key][idx][field] = el.value;
+    }
+  }
+  // Nested item lists (socialProof.stats, whyUs.items, experience.steps)
+  if (el.dataset.hpNested) {
+    const pKey = el.dataset.hpNested;
+    const cKey = el.dataset.hpNestedChild;
+    const idx = Number(el.dataset.hpNestedIdx);
+    const field = el.dataset.hpNestedField;
+    if (state.admin.homepageDraft?.[pKey]?.[cKey]?.[idx]) {
+      state.admin.homepageDraft[pKey][cKey][idx][field] = el.value;
+    }
+  }
   if (el.hasAttribute('data-admin-clients-search')) {
     state.admin.clientSearch = el.value;
     render();

@@ -2461,50 +2461,35 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .bottom-tab { min-height: 58px; }
   .lux { padding-bottom: 0; }
 }
-/* ==========================================================
-   FIX - Desktop Bottom Navigation
-   Paste at the VERY END of styles.css
-   ========================================================== */
 
-@media (min-width:900px){
-
-  .bottom-nav{
-      position:fixed !important;
-
-      top:auto !important;
-      bottom:24px !important;
-
-      left:50% !important;
-      right:auto !important;
-
-      transform:translateX(-50%) !important;
-
-      width:100%;
-      max-width:620px !important;
-
-      height:60px !important;
-      min-height:60px !important;
-
-      display:grid;
-      grid-template-columns:repeat(5,1fr);
-
-      border-radius:100px !important;
-
-      overflow:hidden !important;
-
-      z-index:9999 !important;
-
-      box-shadow:0 16px 40px rgba(0,0,0,.18);
-  }
-
-  .bottom-tab{
-      min-height:60px !important;
-      height:60px !important;
-
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      flex-direction:column;
-  }
-
+/* ===== HOMEPAGE CONFIG SECTIONS (accordion) ===== */
+.config-section {
+  border: 1px solid var(--border, #e0dcd4);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.config-section[open] {
+  border-color: var(--gold, #C6A86B);
+}
+.config-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface, #faf9f6);
+  list-style: none;
+}
+.config-section-title::-webkit-details-marker { display: none; }
+.config-section-title::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform .15s;
+}
+.config-section[open] > .config-section-title::before {
+  transform: rotate(90deg);
+}
+.config-section > *:not(summary) {
+  padding: 0 14px 14px;
 }
