@@ -1609,14 +1609,38 @@ function homeScreen() {
           ${heroImages.length
             ? `<div class="hero-art-frame">${autoCarousel(heroImages.map(h => h.url), {
                  alt: esc(brandName),
-                 className: 'ac-fill', eager: true
+                 className: 'ac-fill', arrows: heroImages.length > 1, dots: heroImages.length > 1, counter: heroImages.length > 1, eager: true,
+                 captions: heroImages.map(h => ({ title: h.title, subtitle: h.subtitle }))
                })}</div>`
-            : `<div class="hero-art-frame">${nailArtSvg()}</div>`}
+            : `<div class="hero-art-frame hero-art-empty">
+                 ${nailArtSvg()}
+                 <div class="hero-empty-hint">Sube fotos de tu trabajo desde el panel de administración</div>
+               </div>`}
           <span class="corner corner-br" aria-hidden="true"></span>
           <span class="corner corner-tl" aria-hidden="true"></span>
         </div>
       </div>
     </header>
+
+    <!-- ═══ FEATURED WORK STRIP ═══ -->
+    ${(igTiles.length || signature.some(s => (s.imageUrls?.length || s.imageUrl))) ? `
+    <section class="section section-flush featured-strip-section">
+      <div class="section-inner">
+        <div class="section-head center fade-up">
+          <div class="eyebrow">${esc(galConf.eyebrow || 'Nuestro trabajo')}</div>
+          ${goldDivider()}
+        </div>
+        <div class="featured-strip fade-up">
+          ${igTiles.length ? igTiles.slice(0, 8).map((m, i) => `<button class="featured-strip-item" data-lightbox-open="${i}" aria-label="Ver foto">
+            <img src="${esc(m.url)}" alt="${esc(m.title || m.category || brandName)}" loading="lazy">
+          </button>`).join('')
+          : signature.filter(s => s.imageUrls?.length || s.imageUrl).map(s => {
+              const img = s.imageUrls?.[0] || s.imageUrl;
+              return `<div class="featured-strip-item"><img src="${esc(img)}" alt="${esc(s.name)}" loading="lazy"></div>`;
+            }).join('')}
+        </div>
+      </div>
+    </section>` : ''}
 
     <!-- ═══ SOCIAL PROOF ═══ -->
     <section class="section section-ivory">
