@@ -2660,3 +2660,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .hero-art-frame .ac-prev { left: 8px; }
   .hero-art-frame .ac-next { right: 8px; }
 }
+/* ===== FIX DESKTOP NAV ===== */
+
+@media (min-width: 900px) {
+
+    .bottom-nav{
+        position:fixed !important;
+        top:auto !important;
+        bottom:24px !important;
+        left:50% !important;
+        right:auto !important;
+        transform:translateX(-50%) !important;
+
+        width:100%;
+        max-width:620px;
+
+        min-height:60px !important;
+        height:60px !important;
+
+        border-radius:100px !important;
+        overflow:hidden;
+        box-shadow:0 16px 40px rgba(0,0,0,.12);
+    }
+
+}
