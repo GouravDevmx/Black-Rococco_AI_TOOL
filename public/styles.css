@@ -2493,3 +2493,50 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .config-section > *:not(summary) {
   padding: 0 14px 14px;
 }
+/* ==========================================================
+   FIX - Desktop Bottom Navigation
+   Paste at the VERY END of styles.css
+   ========================================================== */
+
+@media (min-width:900px){
+
+  .bottom-nav{
+      position:fixed !important;
+
+      top:auto !important;
+      bottom:24px !important;
+
+      left:50% !important;
+      right:auto !important;
+
+      transform:translateX(-50%) !important;
+
+      width:100%;
+      max-width:620px !important;
+
+      height:60px !important;
+      min-height:60px !important;
+
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+
+      border-radius:100px !important;
+
+      overflow:hidden !important;
+
+      z-index:9999 !important;
+
+      box-shadow:0 16px 40px rgba(0,0,0,.18);
+  }
+
+  .bottom-tab{
+      min-height:60px !important;
+      height:60px !important;
+
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+  }
+
+}
