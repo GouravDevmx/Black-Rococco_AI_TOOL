@@ -73,7 +73,6 @@ const state = {
     clientPhotoUploading: false,
     aboutUsDraft: null,
     aboutUsUploading: false,
-    homepageDraft: null,
     promoImageDraft: '',
     clientSearch: '',
     agendaView: 'daily',
@@ -94,6 +93,30 @@ const state = {
     imageIndex: {},
     error: '',
     success: null
+  },
+  clientAuth: {
+    loggedIn: false,
+    displayName: '',
+    whatsapp: '',
+    clientId: null,
+    showForm: '', // 'login' | 'register' | ''
+    loginWhatsapp: '',
+    loginPassword: '',
+    regName: '',
+    regWhatsapp: '',
+    regEmail: '',
+    regPassword: '',
+    error: '',
+    loading: false,
+    appointments: [],
+    appointmentsLoaded: false
+  },
+  blogPosts: [],
+  blogDetail: null,
+  blogAdmin: {
+    editingId: null,
+    coverImageDraft: '',
+    coverUploading: false
   }
 };
 
@@ -120,68 +143,13 @@ const api = (url, options = {}) => fetch(url, {
   return payload;
 });
 
-// Real URLs -> app tabs.
-//
-// The server now renders a genuine page at each of these paths (see lib/seo.js)
-// so that Google gets unique, indexable content instead of one JS-injected page.
-// When the SPA boots it must land on the matching tab, or someone arriving from
-// a search result for /servicios would be dropped on the homepage.
-const PATH_TO_TAB = {
-  '/': 'inicio',
-  '/servicios': 'servicios',
-  '/reservar': 'reservar',
-  '/galeria': 'galeria',
-  '/academia': 'academia',
-  '/sobre-nosotros': 'inicio',
-  '/contacto': 'inicio'
-};
-
-function setRouteFromUrl() {
-  // #admin is kept as-is: the admin panel is deliberately not a crawlable URL.
+function setHashMode() {
   const hash = location.hash.replace('#', '');
-  if (hash === 'admin') { state.mode = 'admin'; return; }
-  if (['inicio', 'servicios', 'reservar', 'galeria', 'academia'].includes(hash)) {
+  if (hash === 'admin') state.mode = 'admin';
+  if (['inicio', 'servicios', 'reservar', 'galeria', 'academia', 'blog', 'mi-cuenta'].includes(hash)) {
     state.mode = 'client';
     state.tab = hash;
-    return;
   }
-
-  const path = location.pathname.replace(/\/+$/, '') || '/';
-  if (PATH_TO_TAB[path]) {
-    state.mode = 'client';
-    state.tab = PATH_TO_TAB[path];
-    return;
-  }
-  // /servicios/<slug> — a service detail page. Open the services tab; the
-  // service modal is opened once the config has loaded and we can match the slug.
-  if (/^\/servicios\/[a-z0-9-]+$/.test(path)) {
-    state.mode = 'client';
-    state.tab = 'servicios';
-    state.pendingServiceSlug = path.split('/').pop();
-  }
-}
-
-// Kept as an alias so existing call sites keep working.
-const setHashMode = setRouteFromUrl;
-
-// Matches a URL slug back to a service, so /servicios/manicura-rusa opens that
-// service. Mirrors slugify() in lib/seo.js — they must agree or the deep link
-// silently lands on the plain services list.
-function slugifyClient(text) {
-  return String(text || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-
-function openPendingServiceFromUrl() {
-  if (!state.pendingServiceSlug) return;
-  const match = (state.config?.services || [])
-    .find(s => slugifyClient(s.name) === state.pendingServiceSlug);
-  state.pendingServiceSlug = null;
-  if (match) state.serviceModalId = match.id;
 }
 
 function splitBrand(name) {
@@ -330,64 +298,6 @@ function autoCarousel(images, opts = {}) {
   </div>`;
 }
 
-
-// ---------------------------------------------------------------------------
-// SCROLL REVEAL
-//
-// .fade-up starts at opacity:0. This observer is what makes it visible — so if
-// it fails to run, the page is BLANK. Two safeguards:
-//   1. If IntersectionObserver is unsupported, every element is revealed at once.
-//   2. Elements already on screen at render time are revealed immediately,
-//      rather than waiting for a scroll that may never come on a short page.
-// ---------------------------------------------------------------------------
-let revealObserver = null;
-
-function initReveal() {
-  const els = document.querySelectorAll('.fade-up:not(.vis)');
-  if (!els.length) return;
-
-  // No observer support, or the user asked for reduced motion: show everything.
-  if (!('IntersectionObserver' in window) ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    els.forEach(el => el.classList.add('vis'));
-    return;
-  }
-
-  if (!revealObserver) {
-    revealObserver = new IntersectionObserver(entries => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const el = entry.target;
-        // The stagger is done with CSS transition-delay, NOT setTimeout.
-        //
-        // With a timer, a re-render between "intersect" and "fire" would drop
-        // the .vis class on a node that had already been replaced — leaving the
-        // NEW node stuck at opacity:0, i.e. permanently invisible. That is a
-        // blank-section bug, and it is exactly what happened in testing.
-        // transition-delay has no such race: the class is applied immediately
-        // and the browser handles the timing.
-        const delay = Number(el.dataset.delay || 0);
-        if (delay) el.style.transitionDelay = `${delay}ms`;
-        el.classList.add('vis');
-        revealObserver.unobserve(el);
-      }
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-  }
-
-  els.forEach(el => revealObserver.observe(el));
-}
-
-// The top nav condenses once the hero is behind you.
-function initNavScroll() {
-  const nav = document.querySelector('[data-lux-nav]');
-  if (!nav) return;
-  const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 50);
-  onScroll();
-  window.removeEventListener('scroll', window.__luxNavScroll || (() => {}));
-  window.__luxNavScroll = onScroll;
-  window.addEventListener('scroll', onScroll, { passive: true });
-}
-
 function socialIconSvg(platform) {
   const icons = {
     instagram: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
@@ -434,8 +344,7 @@ function profileSummary(c = {}) {
   return parts.length ? parts.join(' · ') : 'Sin preferencias registradas';
 }
 
-function whatsappChatUrl(message) {
-  if (!message) message = state.salonConfig?.homepage?.whatsappMessage || 'Hola, quiero información para agendar una cita ✨';
+function whatsappChatUrl(message = 'Hola Black Rococo, quiero información para agendar una cita ✨') {
   const base = state.config?.contact?.whatsappUrl || 'https://api.whatsapp.com/send/?phone=5213326553522';
   const phone = (base.match(/phone=([^&]+)/) || [])[1] || '5213326553522';
   return `https://api.whatsapp.com/send/?phone=${phone}&text=${encodeURIComponent(message)}`;
@@ -491,21 +400,11 @@ function dateOptions() {
   return days;
 }
 
-const TAB_TO_PATH = {
-  inicio: '/', servicios: '/servicios', reservar: '/reservar',
-  galeria: '/galeria', academia: '/academia'
-};
-
 function goClient(tab) {
   state.mode = 'client';
   state.tab = tab;
-  // Put the REAL, indexable URL in the address bar. This used to write `#tab`,
-  // and a hash fragment is not a distinct page to Google — it cannot be
-  // indexed, ranked or shared as one. Each tab now maps to a path the server
-  // genuinely renders (see lib/seo.js), so a copied link is a real page.
-  const path = TAB_TO_PATH[tab] || '/';
-  if (location.pathname !== path) history.pushState(null, '', path);
-  else history.replaceState(null, '', path);
+  if (tab !== 'blog') state.blogDetail = null;
+  history.replaceState(null, '', `#${tab}`);
   render();
 }
 
@@ -524,13 +423,13 @@ function startBooking(serviceId = null) {
   state.booking.time = null;
   state.booking.error = '';
   state.booking.success = null;
-  history.replaceState(null, '', '/reservar');
+  history.replaceState(null, '', '#reservar');
   if (serviceId) loadAvailability();
   render();
 }
 
 async function loadInitial() {
-  setRouteFromUrl();
+  setHashMode();
   const data = await api('/api/config');
   state.config = data.settings;
   state.salonConfig = data.salonConfig || { colors: [], bebidas: [], estilos: [], serviceCategories: [], galleryCategories: [], heroImages: [] };
@@ -540,7 +439,10 @@ async function loadInitial() {
   state.promotions = data.promotions || [];
   state.courses = data.courses || [];
   state.media = data.media || { gallery: [], carousel: [], categories: [] };
+  state.blogPosts = data.blogPosts || [];
   state.booking.date = todayLocal();
+  // Check client auth session
+  checkClientSession();
   if (state.mode === 'admin') {
     await checkAdmin();
     if (new URLSearchParams(location.search).has('gcal')) {
@@ -549,9 +451,6 @@ async function loadInitial() {
     }
   }
   render();
-  // A visitor landing on /servicios/manicura-rusa from Google should see that
-  // service, not the generic list.
-  openPendingServiceFromUrl();
 }
 
 async function checkAdmin() {
@@ -673,6 +572,151 @@ async function adminLogout() {
 
 async function loadAdminDashboard() {
   state.admin.data = await api('/api/admin/dashboard');
+}
+
+// --- Client auth ---
+async function checkClientSession() {
+  try {
+    const data = await api('/api/client/me');
+    state.clientAuth.loggedIn = Boolean(data.loggedIn);
+    state.clientAuth.displayName = data.displayName || '';
+    state.clientAuth.whatsapp = data.whatsapp || '';
+    state.clientAuth.clientId = data.clientId || null;
+  } catch (_) {
+    state.clientAuth.loggedIn = false;
+  }
+}
+
+async function clientRegister() {
+  const ca = state.clientAuth;
+  ca.error = '';
+  ca.loading = true;
+  render();
+  try {
+    const data = await api('/api/client/register', {
+      method: 'POST',
+      body: { name: ca.regName, whatsapp: ca.regWhatsapp, email: ca.regEmail, password: ca.regPassword }
+    });
+    ca.loggedIn = true;
+    ca.displayName = data.displayName;
+    ca.whatsapp = data.whatsapp;
+    ca.showForm = '';
+    ca.regName = ''; ca.regWhatsapp = ''; ca.regEmail = ''; ca.regPassword = '';
+    await checkClientSession();
+  } catch (err) {
+    ca.error = err.message;
+  }
+  ca.loading = false;
+  render();
+}
+
+async function clientLogin() {
+  const ca = state.clientAuth;
+  ca.error = '';
+  ca.loading = true;
+  render();
+  try {
+    const data = await api('/api/client/login', {
+      method: 'POST',
+      body: { whatsapp: ca.loginWhatsapp, password: ca.loginPassword }
+    });
+    ca.loggedIn = true;
+    ca.displayName = data.displayName;
+    ca.whatsapp = data.whatsapp;
+    ca.showForm = '';
+    ca.loginWhatsapp = ''; ca.loginPassword = '';
+    await checkClientSession();
+  } catch (err) {
+    ca.error = err.message;
+  }
+  ca.loading = false;
+  render();
+}
+
+async function clientLogout() {
+  try { await api('/api/client/logout', { method: 'POST' }); } catch (_) {}
+  state.clientAuth.loggedIn = false;
+  state.clientAuth.displayName = '';
+  state.clientAuth.whatsapp = '';
+  state.clientAuth.clientId = null;
+  state.clientAuth.appointments = [];
+  state.clientAuth.appointmentsLoaded = false;
+  state.clientAuth.showForm = '';
+  render();
+}
+
+async function loadClientAppointments() {
+  if (state.clientAuth.appointmentsLoaded) return;
+  try {
+    const data = await api('/api/client/appointments');
+    state.clientAuth.appointments = data.appointments || [];
+    state.clientAuth.appointmentsLoaded = true;
+  } catch (err) {
+    state.clientAuth.error = err.message;
+  }
+  render();
+}
+
+// --- Blog ---
+async function loadBlogDetail(id) {
+  try {
+    const data = await api(`/api/blogs/${encodeURIComponent(id)}`);
+    state.blogDetail = data.post;
+  } catch (err) {
+    state.blogDetail = null;
+  }
+  render();
+}
+
+async function createOrUpdateBlog(form) {
+  const fd = new FormData(form);
+  const body = {
+    title: fd.get('title') || '',
+    excerpt: fd.get('excerpt') || '',
+    body: fd.get('body') || '',
+    coverImageUrl: state.blogAdmin.coverImageDraft || fd.get('coverImageUrl') || '',
+    published: fd.get('published') === 'on',
+    tags: (fd.get('tags') || '').split(',').map(t => t.trim()).filter(Boolean),
+    author: fd.get('author') || 'Black Rococo'
+  };
+  const editId = state.blogAdmin.editingId;
+  try {
+    if (editId && editId !== '__new__') {
+      await api(`/api/admin/blogs/${editId}`, { method: 'PUT', body });
+    } else {
+      await api('/api/admin/blogs', { method: 'POST', body });
+    }
+    state.blogAdmin.editingId = null;
+    state.blogAdmin.coverImageDraft = '';
+    await loadAdminDashboard();
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  render();
+}
+
+async function deleteBlog(id) {
+  if (!confirm('¿Eliminar esta entrada de blog?')) return;
+  try {
+    await api(`/api/admin/blogs/${id}`, { method: 'DELETE' });
+    await loadAdminDashboard();
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  render();
+}
+
+async function toggleBlogPublish(id, currentlyPublished) {
+  try {
+    await api(`/api/admin/blogs/${id}/publish`, {
+      method: 'PATCH',
+      body: { published: !currentlyPublished }
+    });
+    await loadAdminDashboard();
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  render();
 }
 
 async function cycleStatus(id, current) {
@@ -1506,378 +1550,182 @@ function serviceButton(s, detailed = false) {
 
 function homeScreen() {
   const c = state.config;
-  const hp = state.salonConfig?.homepage || {};
-  const heroConf = hp.hero || {};
-  const spConf = hp.socialProof || {};
-  const svcConf = hp.servicesSection || {};
-  const whyConf = hp.whyUs || {};
-  const expConf = hp.experience || {};
-  const galConf = hp.gallerySection || {};
-  const ctaConf = hp.contactCta || {};
-  const ftConf = hp.footer || {};
-
   const carouselMedia = (state.media?.carousel || []).slice(0, 10);
-  const galleryMedia = (state.media?.gallery || []).slice(0, 10);
   const heroImages = (state.salonConfig?.heroImages || []).filter(h => h.url);
+  const heroSlide = Math.min(state.heroSlide || 0, Math.max(0, heroImages.length - 1));
+  const heroItem = heroImages[heroSlide] || null;
   state.homeCarouselCache = carouselMedia;
 
+  // About Us + team, both managed from the admin panel
   const about = state.salonConfig?.aboutUs || {};
   const aboutImages = (about.images || []).filter(Boolean);
   state.aboutImagesCache = aboutImages;
   const team = state.staff || [];
-  const rating = c.brand.rating || '4.9';
-  const brandName = c.brand.name || 'Black Rococo';
 
+  // Social links
   const whatsappNum = (c.contact?.whatsappNumber || '').replace(/\D/g, '') || '5213326553522';
   const socialLinks = [
     { name: 'Instagram', url: c.contact.instagramUrl, icon: socialIconSvg('instagram') },
+    { name: 'WhatsApp', url: `https://api.whatsapp.com/send/?phone=${whatsappNum}`, icon: socialIconSvg('whatsapp') },
     { name: 'TikTok', url: c.contact.tiktokUrl, icon: socialIconSvg('tiktok') },
     { name: 'Facebook', url: c.contact.facebookUrl, icon: socialIconSvg('facebook') }
   ].filter(l => l.url);
 
+  // Google Maps embed URL
+  // P0: this used to be a HARDCODED embed URL with fixed coordinates and a
+  // placeholder place-ID of literally `0x0:0x0`. The admin panel offers editable
+  // Address fields, but the map ignored them entirely — so changing the address
+  // in Configuración updated the text above the map while the map itself kept
+  // pointing at the old location. The two silently disagreed, and a customer
+  // following the pin could be sent to the wrong place.
+  //
+  // Now derived from the saved address. `?q=<address>&output=embed` is Google's
+  // keyless embed form: it geocodes the address string at render time, so the
+  // map always matches whatever Configuración says. No API key required, so
+  // there is nothing extra to provision or to expire.
   const mapsQuery = [c.contact.address1, c.contact.address2]
-    .map(p => String(p || '').trim()).filter(Boolean).join(', ');
+    .map(part => String(part || '').trim())
+    .filter(Boolean)
+    .join(', ');
   const mapsEmbedSrc = mapsQuery
     ? `https://www.google.com/maps?q=${encodeURIComponent(mapsQuery)}&hl=es&z=16&output=embed`
     : '';
 
-  const featured = (c.featuredServiceIds || [])
-    .map(id => (state.services || []).find(s => s.id === id)).filter(Boolean);
-  const signature = (featured.length ? featured : (state.services || [])).slice(0, 3);
+  return `<section class="screen">
+    ${brandHeader()}
 
-  const igTiles = (galleryMedia.length ? galleryMedia : carouselMedia).slice(0, 10);
-
-  // Trust pills — configurable from admin or fallback defaults
-  const trustPills = (hp.trustPills && hp.trustPills.length)
-    ? hp.trustPills
-    : [
-        { icon: '★', text: `${rating} en Google` },
-        { icon: '◇', text: 'Materiales premium' },
-        { icon: '✧', text: 'Técnicas certificadas' }
-      ];
-
-  // Stats — configurable from admin or fallback defaults
-  const stats = (spConf.stats && spConf.stats.length)
-    ? spConf.stats
-    : [
-        { figure: rating, label: 'Calificación Google' },
-        { figure: '+500', label: 'Clientas atendidas' },
-        { figure: '6', label: 'Años de práctica' },
-        { figure: '3–4', label: 'Semanas de duración' }
-      ];
-
-  // Why Us items — configurable from admin
-  const whyItems = (whyConf.items && whyConf.items.length)
-    ? whyConf.items
-    : [
-        { title: 'Técnica rusa en seco', text: 'Sin agua y sin cortes. La cutícula se retira con torno, con una precisión que el acabado delata.' },
-        { title: 'Esterilización verificable', text: 'Instrumental metálico esterilizado entre clientas. Limas y porosos, de un solo uso. Sin excepción.' },
-        { title: 'Duración real de 3 a 4 semanas', text: 'No es una promesa de marketing: es la consecuencia de una preparación bien hecha.' },
-        { title: 'Una clienta a la vez', text: 'Trabajamos con cita para dedicarte el servicio completo, sin prisa y sin sala de espera.' }
-      ];
-
-  // Experience steps — configurable from admin
-  const steps = (expConf.steps && expConf.steps.length)
-    ? expConf.steps
-    : [
-        { num: '01', name: 'Reservas', text: 'Eliges servicio, día y hora en línea. Menos de un minuto.' },
-        { num: '02', name: 'Te recibimos', text: 'Una clienta a la vez, en un estudio privado y sin sala de espera.' },
-        { num: '03', name: 'El trabajo', text: 'Preparación en seco, acabado impecable y materiales premium.' },
-        { num: '04', name: 'Vuelves', text: 'Tres a cuatro semanas después. Te recordamos por WhatsApp.' }
-      ];
-
-  return `<section class="screen lux">
-
-    <!-- ═══ HERO ═══ -->
-    <header class="hero">
-      <div class="hero-dots" aria-hidden="true"></div>
-      <div class="hero-grid">
-        <div class="hero-content fade-up">
-          <div class="eyebrow">${esc(heroConf.eyebrow || c.brand.tagline || 'Estudio de uñas de lujo')}</div>
-          <h1 class="h1">${esc(heroConf.headline || c.brand.heroTitle || 'Donde la elegancia se encuentra con el arte')}</h1>
-          <p class="lead">${esc(heroConf.lead || c.brand.heroSubtitle || '')}</p>
-          <div class="hero-actions">
-            <button class="btn-primary" data-tab="reservar">${esc(heroConf.ctaPrimary || 'Reservar mi cita')}</button>
-            <button class="btn-secondary" data-tab="galeria">${esc(heroConf.ctaSecondary || 'Ver nuestro trabajo')}</button>
-          </div>
-          <div class="trust-row">
-            ${trustPills.map(p => `<span class="trust-pill"><span class="tp-mark">${esc(p.icon)}</span> ${esc(p.text)}</span>`).join('')}
-          </div>
-        </div>
-
-        <div class="hero-art fade-up" data-delay="250">
-          ${heroImages.length
-            ? `<div class="hero-art-frame">${autoCarousel(heroImages.map(h => h.url), {
-                 alt: esc(brandName),
-                 className: 'ac-fill', arrows: heroImages.length > 1, dots: heroImages.length > 1, counter: heroImages.length > 1, eager: true,
-                 captions: heroImages.map(h => ({ title: h.title, subtitle: h.subtitle }))
-               })}</div>`
-            : `<div class="hero-art-frame hero-art-empty">
-                 ${nailArtSvg()}
-                 <div class="hero-empty-hint">Sube fotos de tu trabajo desde el panel de administración</div>
-               </div>`}
-          <span class="corner corner-br" aria-hidden="true"></span>
-          <span class="corner corner-tl" aria-hidden="true"></span>
-        </div>
+    <!-- 1. HERO -->
+    <div class="hero ${heroImages.length ? 'hero-has-image' : ''}">
+      ${heroImages.length
+        ? `<div class="hero-img-wrap">
+            ${autoCarousel(
+              heroImages.map(h => h.url),
+              {
+                alt: '',
+                className: 'ac-fill hero-carousel',
+                eager: true,
+                captions: heroImages.map(h => ({ title: h.title, subtitle: h.subtitle }))
+              }
+            )}
+            <div class="hero-img-overlay"></div>
+          </div>`
+        : `<div class="hero-art"><div class="hero-art-inner">✦</div></div>`}
+      <div class="hero-overlay">
+        <div class="hero-title" data-hero-title>${esc(heroItem?.title || c.brand.heroTitle)}</div>
+        <div class="hero-subtitle" data-hero-subtitle>${esc(heroItem?.subtitle || c.brand.heroSubtitle)}</div>
       </div>
-    </header>
+    </div>
+    <div class="section-tight cta-row">
+      <button class="btn btn-primary" data-tab="reservar">RESERVA TU CITA</button>
+    </div>
+    <div class="specialties"><span class="line"></span><div class="eyebrow">ESPECIALISTAS EN<br><span>${esc(c.brand.specialties)}</span></div><span class="line"></span></div>
 
-    <!-- ═══ FEATURED WORK STRIP ═══ -->
-    ${(igTiles.length || signature.some(s => (s.imageUrls?.length || s.imageUrl))) ? `
-    <section class="section section-flush featured-strip-section">
-      <div class="section-inner">
-        <div class="section-head center fade-up">
-          <div class="eyebrow">${esc(galConf.eyebrow || 'Nuestro trabajo')}</div>
-          ${goldDivider()}
-        </div>
-        <div class="featured-strip fade-up">
-          ${igTiles.length ? igTiles.slice(0, 8).map((m, i) => `<button class="featured-strip-item" data-lightbox-open="${i}" aria-label="Ver foto">
-            <img src="${esc(m.url)}" alt="${esc(m.title || m.category || brandName)}" loading="lazy">
-          </button>`).join('')
-          : signature.filter(s => s.imageUrls?.length || s.imageUrl).map(s => {
-              const img = s.imageUrls?.[0] || s.imageUrl;
-              return `<div class="featured-strip-item"><img src="${esc(img)}" alt="${esc(s.name)}" loading="lazy"></div>`;
-            }).join('')}
-        </div>
-      </div>
-    </section>` : ''}
-
-    <!-- ═══ SOCIAL PROOF ═══ -->
-    <section class="section section-ivory">
-      <div class="section-inner center fade-up">
-        <div class="eyebrow">${esc(spConf.eyebrow || 'La confianza se gana')}</div>
-        ${goldDivider()}
-        <div class="stats-grid">
-          ${stats.map(s => `<div class="stat"><div class="stat-figure">${esc(s.figure)}</div><div class="stat-label">${esc(s.label)}</div></div>`).join('')}
-        </div>
-        ${testimonialCarousel()}
-      </div>
-    </section>
-
-    <!-- ═══ SIGNATURE SERVICES ═══ -->
-    <section class="section" id="servicios">
-      <div class="section-inner">
-        <div class="section-head center fade-up">
-          <div class="eyebrow">${esc(svcConf.eyebrow || 'Servicios insignia')}</div>
-          ${goldDivider()}
-          <h2 class="h2">${esc(svcConf.title || 'Nuestros servicios principales')}</h2>
-          <p class="lead center-lead">${esc(svcConf.subtitle || '')}</p>
-        </div>
-        <div class="service-grid">
-          ${signature.map((sv, i) => luxServiceCard(sv, i)).join('')}
-        </div>
-        <div class="center fade-up" style="margin-top:48px">
-          <button class="btn-secondary" data-tab="servicios">${esc(svcConf.ctaText || 'Ver la carta completa')}</button>
-        </div>
-      </div>
-    </section>
+    <!-- 2. SERVICES (Featured carousel + all services link) -->
+    <div class="section">
+      <div class="section-head"><div><div class="title">Servicios destacados</div><div class="subtitle">Los favoritos de nuestras clientas</div></div></div>
+      ${featuredServicesCarousel()}
+      <button class="btn btn-outline" style="margin-top:12px" data-tab="servicios">VER TODOS LOS SERVICIOS</button>
+    </div>
 
     ${promoBanner()}
 
-    <!-- ═══ WHY US ═══ -->
-    <section class="section section-black" id="nosotros">
-      <div class="section-inner">
-        <div class="why-grid">
-          <div class="fade-up">
-            <div class="eyebrow eyebrow-gold">${esc(whyConf.eyebrow || 'Por qué ' + brandName)}</div>
-            ${goldDivider()}
-            <h2 class="h2 on-dark">${esc(whyConf.title || 'Lo que justifica el precio')}</h2>
-            <p class="lead on-dark">${esc(whyConf.lead || about.text || '')}</p>
-            <button class="btn-secondary dark" data-tab="reservar" style="margin-top:28px">${esc(whyConf.ctaText || 'Reservar mi cita')}</button>
-          </div>
-          <ul class="why-list fade-up" data-delay="150">
-            ${whyItems.map(it => `<li><span class="why-mark" aria-hidden="true"></span><div><strong>${esc(it.title)}</strong><p>${esc(it.text)}</p></div></li>`).join('')}
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══ GALLERY ═══ -->
-    <section class="section" id="galeria">
-      <div class="section-inner">
-        <div class="section-head center fade-up">
-          <div class="eyebrow">${esc(galConf.eyebrow || 'El trabajo')}</div>
-          ${goldDivider()}
-          <h2 class="h2">${esc(galConf.title || 'Resultados reales')}</h2>
-        </div>
-        ${igTiles.length ? `<div class="ig-grid fade-up">
-          ${igTiles.map((m, i) => `<button class="ig-tile" data-lightbox-open="${i}" aria-label="Ver foto">
-            <img src="${esc(m.url)}" alt="${esc(m.title || m.category || brandName)}" loading="lazy">
-            <span class="ig-overlay" aria-hidden="true">${socialIconSvg('instagram')}</span>
-          </button>`).join('')}
+    <!-- 3. ABOUT US (content + images managed in Admin -> CONFIGURACIÓN) -->
+    <div class="section about-section">
+      <div class="about-inner">
+        <div class="about-eyebrow">${esc((about.title || 'Sobre Nosotros').toUpperCase())}</div>
+        <div class="about-title">${esc(c.brand.name || 'Black Rococo')}</div>
+        <div class="about-rule"></div>
+        <p class="about-text">${esc(about.text || 'Somos un estudio profesional de uñas en Ciudad Granja, Zapopan.')}</p>
+        ${aboutImages.length ? `<div class="about-image-grid about-count-${Math.min(aboutImages.length, 3)}">
+          ${aboutImages.map((url, i) => `<img src="${esc(url)}" alt="" loading="lazy" data-about-lightbox="${i}">`).join('')}
         </div>` : ''}
-        <div class="center fade-up" style="margin-top:40px">
-          <button class="btn-secondary" data-tab="galeria">${esc(galConf.ctaText || 'Ver la galería completa')}</button>
+        <div class="about-stats">
+          <div><span class="about-stat-number">${esc(c.brand.rating || '4.9')}</span><span class="about-stat-label">Calificación</span></div>
+          <div><span class="about-stat-number">+500</span><span class="about-stat-label">Clientas felices</span></div>
+          <div><span class="about-stat-number">6</span><span class="about-stat-label">Años de experiencia</span></div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- ═══ EXPERIENCE / STEPS ═══ -->
-    <section class="section section-ivory">
-      <div class="section-inner center fade-up">
-        <div class="eyebrow">${esc(expConf.eyebrow || 'La experiencia')}</div>
-        ${goldDivider()}
-        <h2 class="h2">${esc(expConf.title || 'Cómo funciona')}</h2>
-        <div class="steps-row">
-          ${steps.map(st => `<div class="step"><div class="step-num">${esc(st.num)}</div><div class="step-name">${esc(st.name)}</div><p>${esc(st.text)}</p></div>`).join('')}
-        </div>
+    ${team.length ? `<!-- 3b. TEAM -->
+    <div class="section team-section">
+      <div class="section-head"><div><div class="title">Nuestro Equipo</div><div class="subtitle">Las manos detrás de tus uñas</div></div></div>
+      <div class="team-grid">
+        ${team.map(m => `<div class="team-card">
+          ${m.photoUrl
+            ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}" loading="lazy">`
+            : `<div class="team-photo team-photo-empty">${esc((m.name || '?').charAt(0))}</div>`}
+          <div class="team-name">${esc(m.name)}</div>
+          ${m.role ? `<div class="team-role">${esc(m.role)}</div>` : ''}
+          ${m.bio ? `<p class="team-bio">${esc(m.bio)}</p>` : ''}
+          ${m.instagram ? `<a class="team-ig" href="${esc(m.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}
+        </div>`).join('')}
       </div>
-    </section>
+    </div>` : ''}
 
-    ${team.length ? `<!-- ═══ TEAM ═══ -->
-    <section class="section">
-      <div class="section-inner">
-        <div class="section-head center fade-up">
-          <div class="eyebrow">El equipo</div>
-          ${goldDivider()}
-          <h2 class="h2">Las manos detrás del trabajo</h2>
-        </div>
-        <div class="team-grid fade-up">
-          ${team.map(m => `<figure class="team-card">
-            ${m.photoUrl
-              ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}" loading="lazy">`
-              : `<div class="team-photo team-photo-empty" aria-hidden="true">${esc((m.name || '?').charAt(0))}</div>`}
-            <figcaption>
-              <div class="team-name">${esc(m.name)}</div>
-              ${m.role ? `<div class="team-role">${esc(m.role)}</div>` : ''}
-              ${m.bio ? `<p class="team-bio">${esc(m.bio)}</p>` : ''}
-            </figcaption>
-          </figure>`).join('')}
-        </div>
+    <!-- 4. GALLERY -->
+    <div class="section">
+      <div class="section-head"><div class="title">Resultados reales</div><button class="pill-button" data-tab="galeria">VER GALERÍA →</button></div>
+      <div class="carousel">
+        ${carouselMedia.length
+          ? carouselMedia.map((m, i) => mediaThumbCard(m, i, 'homeCarousel')).join('')
+          : `<div class="image-card"><div class="placeholder">Aún no hay fotos<br>sube fotos reales en Admin → GALERÍA</div></div>`}
       </div>
-    </section>` : ''}
+    </div>
 
-    <!-- ═══ CONTACT / CLOSE ═══ -->
-    <section class="section section-black" id="contacto">
-      <div class="section-inner center fade-up">
-        <div class="eyebrow eyebrow-gold">${esc(ctaConf.eyebrow || 'Reserva')}</div>
-        ${goldDivider()}
-        <h2 class="h2 on-dark">${esc(ctaConf.title || 'Reserva tu cita')}</h2>
-        <p class="lead on-dark center-lead">${esc(ctaConf.subtitle || '')}</p>
-        <div class="hero-actions center-actions">
-          <button class="btn-primary gold" data-tab="reservar">${esc(ctaConf.ctaPrimary || 'Reservar mi cita')}</button>
-          <a class="btn-secondary dark" href="${esc(whatsappChatUrl())}" target="_blank" rel="noopener">${esc(ctaConf.ctaSecondary || 'Escribir por WhatsApp')}</a>
-        </div>
-        <div class="contact-detail">
-          <p>${esc(c.contact.address1 || '')}${c.contact.address2 ? `<br>${esc(c.contact.address2)}` : ''}</p>
-          <p class="contact-hours">${esc(c.contact.hours1 || '')}</p>
-        </div>
-        ${mapsEmbedSrc ? `<div class="map-embed">
-          <iframe src="${esc(mapsEmbedSrc)}" width="100%" height="320" style="border:0" allowfullscreen=""
-            loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="${esc(brandName)} en Google Maps"></iframe>
-        </div>` : ''}
+    ${(state.blogPosts || []).length ? `<div class="section">
+      <div class="section-head"><div class="title">Blog</div><button class="pill-button" data-tab="blog">VER TODOS →</button></div>
+      <div class="card-list">
+        ${(state.blogPosts || []).slice(0, 2).map(p => {
+          const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
+          return `<div class="card blog-card" data-blog-open="${esc(p.id)}" style="cursor:pointer">
+            <div class="eyebrow">${esc(dateStr)}</div>
+            <div class="title" style="font-size:16px;margin:4px 0">${esc(p.title)}</div>
+            ${p.excerpt ? `<div class="subtitle" style="font-size:13px">${esc(p.excerpt).slice(0, 80)}${p.excerpt.length > 80 ? '…' : ''}</div>` : ''}
+          </div>`;
+        }).join('')}
       </div>
-    </section>
+    </div>` : ''}
 
-    <!-- ═══ FOOTER ═══ -->
-    <footer class="lux-footer">
-      <div class="section-inner">
-        <div class="footer-grid">
-          <div>
-            <div class="footer-mark">${esc(brandName)}</div>
-            <p class="footer-note">${esc(ftConf.description || c.brand.tagline || '')}</p>
-            ${socialLinks.length ? `<div class="footer-social">
-              ${socialLinks.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener" aria-label="${esc(l.name)}">${l.icon}</a>`).join('')}
-            </div>` : ''}
-          </div>
-          <div>
-            <div class="footer-head">Explorar</div>
-            <button class="footer-link" data-tab="servicios">Servicios</button>
-            <button class="footer-link" data-tab="galeria">Galería</button>
-            <button class="footer-link" data-tab="reservar">Reservar</button>
-          </div>
-          <div>
-            <div class="footer-head">Visítanos</div>
-            <p class="footer-note">${esc(c.contact.address1 || '')}<br>${esc(c.contact.address2 || '')}</p>
-            <p class="footer-note">${esc(c.contact.hours1 || '')}</p>
-          </div>
-          <div>
-            <div class="footer-head">Contacto</div>
-            <a class="footer-link" href="${esc(whatsappChatUrl())}" target="_blank" rel="noopener">WhatsApp</a>
-            ${c.contact.instagramUrl ? `<a class="footer-link" href="${esc(c.contact.instagramUrl)}" target="_blank" rel="noopener">Instagram</a>` : ''}
-          </div>
-        </div>
-        <div class="footer-fine">${esc(c.brand.footer || '© ' + brandName)}</div>
+    ${(state.courses || []).length ? `<div class="section"><div class="card promo-card" style="border-color:var(--gold, #b08d57)"><div class="eyebrow">BLACK ROCOCO ACADEMY</div><div class="title" style="font-size:22px;margin:6px 0">Cursos y talleres profesionales</div><div class="subtitle">Certifícate en poligel, manicure ruso y más.</div><button class="btn btn-outline" style="margin-top:14px" data-tab="academia">VER CURSOS</button></div></div>` : ''}
+
+    <!-- 5. MAP -->
+    <div class="section map-section">
+      <div class="section-head"><div class="title">Ubicación</div></div>
+      <div class="map-address">
+        <p>${esc(c.contact.address1)}${c.contact.address2 ? '<br>' + esc(c.contact.address2) : ''}</p>
+        <p class="map-hours">${esc(c.contact.hours1)}${c.contact.hours2 ? ' · ' + esc(c.contact.hours2) : ''}</p>
       </div>
-    </footer>
+      ${mapsEmbedSrc ? `<div class="map-embed">
+        <iframe
+          src="${esc(mapsEmbedSrc)}"
+          width="100%" height="300"
+          style="border:0;border-radius:8px"
+          allowfullscreen=""
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          title="Black Rococo en Google Maps"
+        ></iframe>
+      </div>` : ''}
+      <div class="map-actions">
+        <a class="btn btn-outline btn-small" target="_blank" rel="noopener" href="${esc(c.contact.mapsUrl)}">ABRIR EN GOOGLE MAPS</a>
+        <a class="btn btn-outline btn-small" target="_blank" rel="noopener" href="${esc(whatsappChatUrl())}">CONTACTAR POR WHATSAPP</a>
+      </div>
+    </div>
 
+    <!-- 6. SOCIAL -->
+    <div class="section social-section">
+      <div class="social-eyebrow">SÍGUENOS</div>
+      <div class="social-icons-row">
+        ${socialLinks.map(l => `<a class="social-icon-link" href="${esc(l.url)}" target="_blank" rel="noopener" aria-label="${esc(l.name)}">${l.icon}<span class="social-icon-label">${esc(l.name)}</span></a>`).join('')}
+      </div>
+    </div>
+
+    <!-- 7. FOOTER -->
+    <div class="footer">${esc(c.brand.footer)}</div>
     ${bottomNav()}
   </section>`;
 }
-
-// A quiet gold rule. Used to open every section — the one repeated ornament.
-function goldDivider(w = '80px') {
-  return `<span class="gold-divider" style="width:${w}" aria-hidden="true"></span>`;
-}
-
-// Rotating client quotes. Real social proof, presented without a star-rating
-// graphic — the words do more work than the stars.
-function testimonialCarousel() {
-  const hp = state.salonConfig?.homepage || {};
-  const reviews = (hp.testimonials && hp.testimonials.length)
-    ? hp.testimonials
-    : [
-        { text: 'La atención al detalle es excepcional. Cada visita va más allá de un simple servicio de uñas.', author: 'María G.', role: 'Clienta frecuente' },
-        { text: 'Mis uñas para la boda quedaron perfectas. Entendieron mi visión desde la primera consulta.', author: 'Ana L.', role: 'Novia' },
-        { text: 'Después de probar varios salones en Guadalajara, es el único donde siento que cuidan cada detalle.', author: 'Sofía R.', role: 'Reseña de Google' }
-      ];
-  return `<div class="review-carousel auto-carousel" data-ac-autoplay data-ac-index="0">
-    <div class="ac-viewport review-viewport">
-      ${reviews.map((r, i) => `<blockquote class="ac-slide review-card ${i === 0 ? 'active' : ''}">
-        <p>“${esc(r.text)}”</p>
-        <cite><strong>${esc(r.author)}</strong><span>${esc(r.role)}</span></cite>
-      </blockquote>`).join('')}
-    </div>
-    <div class="ac-dots review-dots">
-      ${reviews.map((_, i) => `<button class="ac-dot ${i === 0 ? 'active' : ''}" data-ac-go="${i}" aria-label="Reseña ${i + 1}"></button>`).join('')}
-    </div>
-  </div>`;
-}
-
-// Placeholder art for when no hero photo has been uploaded yet. An editorial
-// stand-in, not a grey box — an empty state should still look intentional.
-function nailArtSvg() {
-  return `<svg class="nail-art" viewBox="0 0 400 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración de uñas">
-    <defs>
-      <linearGradient id="bgGrad" x1="0" y1="0" x2="400" y2="520">
-        <stop offset="0%" stop-color="#F5F0E8"/><stop offset="100%" stop-color="#E8E0D4"/>
-      </linearGradient>
-      <linearGradient id="nailGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#E8D5C4"/><stop offset="100%" stop-color="#D4BBA8"/>
-      </linearGradient>
-    </defs>
-    <rect width="400" height="520" fill="url(#bgGrad)"/>
-    ${[0, 1, 2, 3].map(i => {
-      const x = 96 + i * 56;
-      const h = i === 1 ? 150 : i === 2 ? 140 : 120;
-      const y = 210 - (i === 1 ? 22 : i === 2 ? 14 : 0);
-      return `<rect x="${x}" y="${y}" width="42" height="${h}" rx="21" fill="url(#nailGrad)"/>
-              <rect x="${x}" y="${y}" width="42" height="34" rx="17" fill="#C6A86B" opacity=".5"/>`;
-    }).join('')}
-    <circle cx="200" cy="120" r="52" fill="none" stroke="#C6A86B" stroke-width="1" opacity=".45"/>
-    <circle cx="200" cy="120" r="72" fill="none" stroke="#C6A86B" stroke-width="1" opacity=".22"/>
-  </svg>`;
-}
-
-function luxServiceCard(s, i = 0) {
-  const imgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
-  return `<article class="svc-card fade-up" data-delay="${i * 120}" data-view-service="${esc(s.id)}">
-    <div class="svc-card-media">
-      ${imgs.length
-        ? autoCarousel(imgs, { alt: `${s.name} — Black Rococo, Zapopan`, className: 'ac-fill', dots: imgs.length > 1 })
-        : '<div class="svc-card-blank"></div>'}
-    </div>
-    <h3 class="svc-card-title">${esc(s.name)}</h3>
-    ${s.desc ? `<p class="svc-card-copy">${esc(s.desc)}</p>` : ''}
-    <div class="svc-card-foot">
-      <span class="svc-card-time">${esc(s.dur)} min</span>
-      <span class="svc-card-price">${priceDisplay(s)}</span>
-    </div>
-    <button class="svc-card-cta" data-book="${esc(s.id)}">Reservar</button>
-  </article>`;
-}
-
-
 
 function servicesScreen() {
   const groups = Object.entries(state.groupedServices || {});
@@ -2125,19 +1973,193 @@ function academiaSuccessScreen() {
   </section>`;
 }
 
+// =========================================================================
+// BLOG SCREEN — public, no login required
+// =========================================================================
+function blogScreen() {
+  const [one, two] = splitBrand(state.config?.brand?.name || 'BLACK ROCOCO');
+
+  // Detail view
+  if (state.blogDetail) {
+    const p = state.blogDetail;
+    const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+    return `<section class="client-screen blog-screen">
+      <div class="gold-rule"></div>
+      <div class="logo">${esc(one)}<br>${esc(two)}</div>
+      <div class="section">
+        <button class="pill-button" data-blog-back>← VOLVER AL BLOG</button>
+      </div>
+      ${p.coverImageUrl ? `<div class="blog-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy"></div>` : ''}
+      <div class="section">
+        <div class="blog-detail-header">
+          <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
+          <h1 class="title" style="font-size:26px;margin:8px 0 12px">${esc(p.title)}</h1>
+          ${p.tags.length ? `<div class="blog-tags">${p.tags.map(t => `<span class="blog-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+        </div>
+        <div class="blog-body">${p.body}</div>
+      </div>
+      ${bottomNav()}
+    </section>`;
+  }
+
+  // Listing view
+  const posts = state.blogPosts || [];
+  return `<section class="client-screen blog-screen">
+    <div class="gold-rule"></div>
+    <div class="logo">${esc(one)}<br>${esc(two)}</div>
+    <div class="tagline">BLOG</div>
+    ${posts.length === 0 ? `<div class="section"><div class="card" style="text-align:center"><div class="subtitle">Próximamente — artículos de cuidado, tendencias y más.</div></div></div>` : ''}
+    <div class="blog-list">
+      ${posts.map(p => {
+        const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+        return `<div class="section"><div class="card blog-card" data-blog-open="${esc(p.id)}">
+          ${p.coverImageUrl ? `<div class="blog-card-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy"></div>` : ''}
+          <div class="blog-card-body">
+            <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
+            <div class="title" style="font-size:18px;margin:6px 0">${esc(p.title)}</div>
+            ${p.excerpt ? `<div class="subtitle" style="margin-top:6px">${esc(p.excerpt)}</div>` : ''}
+            ${p.tags.length ? `<div class="blog-tags">${p.tags.map(t => `<span class="blog-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+          </div>
+        </div></div>`;
+      }).join('')}
+    </div>
+    ${bottomNav()}
+  </section>`;
+}
+
+// =========================================================================
+// MI CUENTA SCREEN — login/register/account with guest option
+// =========================================================================
+function miCuentaScreen() {
+  const [one, two] = splitBrand(state.config?.brand?.name || 'BLACK ROCOCO');
+  const ca = state.clientAuth;
+
+  if (ca.loggedIn) {
+    // Load appointments on first visit
+    if (!ca.appointmentsLoaded) loadClientAppointments();
+
+    const today = todayLocal();
+    const upcoming = ca.appointments.filter(a => a.date >= today && a.status !== 'cancelled');
+    const past = ca.appointments.filter(a => a.date < today || a.status === 'cancelled');
+
+    return `<section class="client-screen mi-cuenta-screen">
+      <div class="gold-rule"></div>
+      <div class="logo">${esc(one)}<br>${esc(two)}</div>
+      <div class="section">
+        <div class="card account-header-card">
+          <div class="title" style="font-size:22px">Hola, ${esc(ca.displayName)}</div>
+          <div class="subtitle" style="margin-top:4px">WhatsApp: ${esc(ca.whatsapp)}</div>
+          <button class="pill-button" style="margin-top:12px" data-client-logout>CERRAR SESIÓN</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div class="title">Próximas citas</div></div>
+        ${upcoming.length === 0 ? `<div class="card" style="text-align:center"><div class="subtitle">No tienes citas próximas.</div><button class="btn btn-primary" style="margin-top:12px" data-tab="reservar">RESERVAR CITA</button></div>` : ''}
+        <div class="card-list">
+          ${upcoming.map(a => `<div class="card appt-card">
+            <div class="appt-main">
+              <div>
+                <div class="eyebrow">${esc(a.date)} · ${esc(a.time)}</div>
+                <div class="title" style="font-size:16px">${esc(a.serviceName || '')}</div>
+              </div>
+              <span class="status-badge status-${esc(a.status)}">${esc(statusLabel(a.status))}</span>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><div class="title">Historial</div></div>
+        ${past.length === 0 ? `<div class="card" style="text-align:center"><div class="subtitle">Aún no tienes citas pasadas.</div></div>` : ''}
+        <div class="card-list">
+          ${past.slice(0, 20).map(a => `<div class="card appt-card past">
+            <div class="appt-main">
+              <div>
+                <div class="eyebrow">${esc(a.date)} · ${esc(a.time)}</div>
+                <div class="title" style="font-size:16px">${esc(a.serviceName || '')}</div>
+              </div>
+              <span class="status-badge status-${esc(a.status)}">${esc(statusLabel(a.status))}</span>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+      ${bottomNav()}
+    </section>`;
+  }
+
+  // Not logged in — show options
+  const form = ca.showForm;
+  return `<section class="client-screen mi-cuenta-screen">
+    <div class="gold-rule"></div>
+    <div class="logo">${esc(one)}<br>${esc(two)}</div>
+    <div class="tagline">TU CUENTA</div>
+
+    ${form === '' ? `<div class="section">
+      <div class="card" style="text-align:center">
+        <div class="title" style="font-size:20px;margin-bottom:8px">Accede a tu cuenta</div>
+        <div class="subtitle" style="margin-bottom:18px">Inicia sesión o regístrate para ver tus citas y tu historial. También puedes continuar como invitada.</div>
+        <button class="btn btn-primary" data-show-client-form="login">INICIAR SESIÓN</button>
+        <button class="btn btn-outline" style="margin-top:10px" data-show-client-form="register">CREAR CUENTA</button>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <button class="pill-button" data-tab="reservar">CONTINUAR COMO INVITADA →</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${form === 'login' ? `<div class="section">
+      <div class="card">
+        <div class="title" style="font-size:20px;margin-bottom:14px">Iniciar sesión</div>
+        ${ca.error ? `<div class="error-box">${esc(ca.error)}</div>` : ''}
+        <div class="form-field"><label>WhatsApp</label><input data-client-auth-field="loginWhatsapp" value="${esc(ca.loginWhatsapp)}" inputmode="tel" placeholder="33 0000 0000"></div>
+        <div class="form-field"><label>Contraseña</label><input type="password" data-client-auth-field="loginPassword" value="${esc(ca.loginPassword)}" placeholder="Tu contraseña"></div>
+        <button class="btn btn-primary" data-client-login ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'ENTRANDO...' : 'ENTRAR'}</button>
+        <div style="margin-top:14px;text-align:center">
+          <button class="pill-button" data-show-client-form="register">¿No tienes cuenta? Regístrate</button>
+        </div>
+        <div style="margin-top:8px;text-align:center">
+          <button class="pill-button" data-show-client-form="">← Volver</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${form === 'register' ? `<div class="section">
+      <div class="card">
+        <div class="title" style="font-size:20px;margin-bottom:14px">Crear cuenta</div>
+        ${ca.error ? `<div class="error-box">${esc(ca.error)}</div>` : ''}
+        <div class="form-field"><label>Nombre</label><input data-client-auth-field="regName" value="${esc(ca.regName)}" placeholder="Tu nombre"></div>
+        <div class="form-field"><label>WhatsApp</label><input data-client-auth-field="regWhatsapp" value="${esc(ca.regWhatsapp)}" inputmode="tel" placeholder="33 0000 0000"></div>
+        <div class="form-field"><label>Email (opcional)</label><input type="email" data-client-auth-field="regEmail" value="${esc(ca.regEmail)}" placeholder="tu@email.com"></div>
+        <div class="form-field"><label>Contraseña (mín. 6 caracteres)</label><input type="password" data-client-auth-field="regPassword" value="${esc(ca.regPassword)}" placeholder="Tu contraseña"></div>
+        <button class="btn btn-primary" data-client-register ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'CREANDO...' : 'CREAR CUENTA'}</button>
+        <div style="margin-top:14px;text-align:center">
+          <button class="pill-button" data-show-client-form="login">¿Ya tienes cuenta? Inicia sesión</button>
+        </div>
+        <div style="margin-top:8px;text-align:center">
+          <button class="pill-button" data-show-client-form="">← Volver</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${bottomNav()}
+  </section>`;
+}
+
+function statusLabel(s) {
+  return { new: 'NUEVA', confirmed: 'CONFIRMADA', in_progress: 'EN CURSO', completed: 'COMPLETADA', cancelled: 'CANCELADA' }[s] || s;
+}
+
 function bottomNav() {
+  const ca = state.clientAuth;
+  const accountLabel = ca.loggedIn ? 'MI CUENTA' : 'ACCEDER';
   const tabs = [
     ['inicio', 'INICIO'],
     ['servicios', 'SERVICIOS'],
     ['reservar', 'RESERVAR'],
-    ['academia', 'ACADEMIA'],
-    ['galeria', 'GALERÍA']
+    ['blog', 'BLOG'],
+    ['mi-cuenta', accountLabel]
   ];
-  // WhatsApp FAB — a circular action button, per the design system. The old
-  // pill said "WhatsApp"; the icon says it faster and takes less of the screen.
-  const waFab = `<a class="wa-fab" target="_blank" rel="noopener" href="${esc(whatsappChatUrl())}" aria-label="Chatear por WhatsApp">${socialIconSvg('whatsapp')}</a>`;
-
-  return `${waFab}<nav class="bottom-nav" aria-label="Navegación principal">${tabs.map(([id, label]) => `<button class="bottom-tab ${state.tab === id ? 'active' : ''}" data-tab="${id}"><span>${label}</span><span class="nav-dot"></span></button>`).join('')}</nav>`;
+  return `<a class="wa-float" target="_blank" rel="noopener" href="${esc(whatsappChatUrl())}" aria-label="Chatear por WhatsApp">WhatsApp</a><nav class="bottom-nav">${tabs.map(([id, label]) => `<button class="bottom-tab ${state.tab === id ? 'active' : ''}" data-tab="${id}"><span>${label}</span><span class="nav-dot"></span></button>`).join('')}</nav>`;
 }
 
 function adminScreen() {
@@ -2157,7 +2179,7 @@ function adminScreen() {
       <div class="card"><div class="eyebrow">NOTIFICACIONES</div><div class="stat-number">${esc(data?.unreadNotifications || 0)}</div></div>
     </div>
     <div class="pill-row admin-tabs">
-      ${[['agenda','AGENDA'],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
+      ${[['agenda','AGENDA'],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['blog','BLOG'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
     </div>
     ${state.admin.error ? `<div class="error-box">${esc(state.admin.error)}</div>` : ''}
     ${state.admin.tab === 'agenda' ? adminAgenda(data) : ''}
@@ -2168,10 +2190,72 @@ function adminScreen() {
     ${state.admin.tab === 'equipo' ? adminStaff(data) : ''}
     ${state.admin.tab === 'academia' ? adminAcademia(data) : ''}
     ${state.admin.tab === 'galeria' ? adminGallery(data) : ''}
+    ${state.admin.tab === 'blog' ? adminBlog(data) : ''}
     ${state.admin.tab === 'publicar' ? adminPublish(data) : ''}
     ${state.admin.tab === 'integraciones' ? adminIntegrations() : ''}
     ${state.admin.tab === 'configuracion' ? adminConfiguracion(data) : ''}
   </section>`;
+}
+
+function adminBlog(data) {
+  const blogs = data?.blogPosts || [];
+  const editing = state.blogAdmin.editingId;
+  const editPost = editing && editing !== '__new__' ? blogs.find(b => b.id === editing) : null;
+  const isNew = editing === '__new__';
+
+  if (editing) {
+    return `<div class="section">
+      <div class="section-head compact-head">
+        <div class="title">${isNew ? 'Nueva Entrada' : 'Editar Entrada'}</div>
+        <button class="pill-button" data-cancel-blog-edit>CANCELAR</button>
+      </div>
+      <form data-blog-form class="card">
+        <div class="form-field"><label>Título</label><input name="title" value="${esc(editPost?.title || '')}" placeholder="Título del artículo" required></div>
+        <div class="form-field"><label>Extracto / Resumen</label><textarea name="excerpt" rows="2" placeholder="Breve descripción...">${esc(editPost?.excerpt || '')}</textarea></div>
+        <div class="form-field"><label>Contenido (HTML)</label><textarea name="body" rows="12" placeholder="Escribe el contenido del artículo...">${esc(editPost?.body || '')}</textarea></div>
+        <div class="form-field"><label>Imagen de portada</label>
+          ${state.blogAdmin.coverImageDraft || editPost?.coverImageUrl ? `<div class="admin-thumb-row"><img src="${esc(state.blogAdmin.coverImageDraft || editPost?.coverImageUrl || '')}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px"><button type="button" class="pill-button" data-remove-blog-cover>QUITAR</button></div>` : ''}
+          <input type="file" accept="image/*" data-blog-cover-input>
+          <input type="hidden" name="coverImageUrl" value="${esc(state.blogAdmin.coverImageDraft || editPost?.coverImageUrl || '')}">
+          ${state.blogAdmin.coverUploading ? '<div class="subtitle">Subiendo imagen...</div>' : ''}
+        </div>
+        <div class="form-field"><label>Etiquetas (separadas por coma)</label><input name="tags" value="${esc((editPost?.tags || []).join(', '))}" placeholder="tendencias, manicure, tips"></div>
+        <div class="form-field"><label>Autor</label><input name="author" value="${esc(editPost?.author || 'Black Rococo')}" placeholder="Black Rococo"></div>
+        <div class="form-field" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" name="published" id="blog-published" ${editPost?.published ? 'checked' : ''}>
+          <label for="blog-published" style="font-size:13px;letter-spacing:0">Publicar inmediatamente</label>
+        </div>
+        <button class="btn btn-primary" type="submit">${isNew ? 'CREAR ENTRADA' : 'GUARDAR CAMBIOS'}</button>
+      </form>
+    </div>`;
+  }
+
+  return `<div class="section">
+    <div class="section-head compact-head">
+      <div class="title">Blog (${blogs.length})</div>
+      <button class="pill-button" data-new-blog>+ NUEVA ENTRADA</button>
+    </div>
+    ${blogs.length === 0 ? '<div class="card" style="text-align:center"><div class="subtitle">No hay entradas de blog aún.</div></div>' : ''}
+    <div class="card-list">
+      ${blogs.map(b => {
+        const dateStr = new Date(b.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `<div class="card">
+          <div class="appt-main">
+            <div style="flex:1;min-width:0">
+              <div class="eyebrow">${b.published ? '🟢 PUBLICADO' : '⚪ BORRADOR'} · ${esc(dateStr)}</div>
+              <div class="title" style="font-size:15px">${esc(b.title)}</div>
+              ${b.excerpt ? `<div class="subtitle" style="margin-top:4px;font-size:12px">${esc(b.excerpt).slice(0, 100)}</div>` : ''}
+            </div>
+            <div class="pill-row" style="flex-shrink:0">
+              <button class="pill-button" data-edit-blog="${esc(b.id)}">EDITAR</button>
+              <button class="pill-button" data-toggle-blog-publish="${esc(b.id)}" data-published="${b.published ? '1' : '0'}">${b.published ? 'DESPUBLICAR' : 'PUBLICAR'}</button>
+              <button class="pill-button" data-delete-blog="${esc(b.id)}">ELIMINAR</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
 }
 
 function adminLoginScreen() {
@@ -2399,7 +2483,7 @@ function adminServices(data) {
         <div class="price">${money(s.price)}</div>
         <div class="price-stepper"><button class="icon-btn" data-price-step="${esc(s.id)}" data-delta="-10">−</button><button class="icon-btn" data-price-step="${esc(s.id)}" data-delta="10">+</button></div>
       </div>
-      ${s.imageUrl ? `<div class="admin-thumb-row" style="margin-top:8px">${(s.imageUrls?.length ? s.imageUrls : [s.imageUrl]).filter(Boolean).map(url => `<img src="${esc(url)}" alt="Miniatura" class="admin-thumb">`).join('')}</div>` : ''}
+      ${s.imageUrl ? `<div class="admin-thumb-row" style="margin-top:8px">${(s.imageUrls?.length ? s.imageUrls : [s.imageUrl]).filter(Boolean).map(url => `<img src="${esc(url)}" alt="" class="admin-thumb">`).join('')}</div>` : ''}
       <div class="row-actions">
         ${(s.imageUrls?.length || s.imageUrl) ? `<button class="mini-action" data-view-service-images="${esc(s.id)}">Ver fotos</button>` : ''}
         <button class="mini-action" data-edit-service="${esc(s.id)}">Editar</button>
@@ -2506,7 +2590,7 @@ function adminAcademia(data) {
         <label>Fotos del curso (puedes subir varias)</label>
         <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" data-course-image-input>
         ${state.admin.courseImageUploading ? `<div class="empty">Subiendo imágenes…</div>` : ''}
-        ${draftImages.length ? `<div class="admin-thumb-row">${draftImages.map((url, i) => `<div class="admin-thumb-wrap"><img src="${esc(url)}" alt="Miniatura" class="admin-thumb"><button type="button" class="thumb-remove" data-remove-course-image="${i}" aria-label="Quitar foto">✕</button></div>`).join('')}</div>` : `<div class="service-meta" style="margin-top:6px">Sin fotos todavía.</div>`}
+        ${draftImages.length ? `<div class="admin-thumb-row">${draftImages.map((url, i) => `<div class="admin-thumb-wrap"><img src="${esc(url)}" alt="" class="admin-thumb"><button type="button" class="thumb-remove" data-remove-course-image="${i}" aria-label="Quitar foto">✕</button></div>`).join('')}</div>` : `<div class="service-meta" style="margin-top:6px">Sin fotos todavía.</div>`}
       </div>
       <label class="pill-button" style="margin-bottom:12px"><input type="checkbox" name="active" ${(!editing || editing.active) ? 'checked' : ''}> Activo (visible en el sitio)</label>
       <div class="row-actions">
@@ -2519,7 +2603,7 @@ function adminAcademia(data) {
         <div><div class="service-name">${esc(c.title)}</div><div class="service-meta">${money(c.price)} · ${esc(c.duration)} · Cupo ${esc(c.capacity)} · ${c.active ? 'Activo' : 'Pausado'}</div></div>
         <button class="toggle ${c.active ? 'active' : ''}" data-toggle-course="${esc(c.id)}" data-active="${c.active ? '1' : '0'}"><span></span></button>
       </div>
-      ${c.imageUrls && c.imageUrls.length ? `<div class="admin-thumb-row">${c.imageUrls.map(url => `<img src="${esc(url)}" alt="Miniatura" class="admin-thumb">`).join('')}</div>` : ''}
+      ${c.imageUrls && c.imageUrls.length ? `<div class="admin-thumb-row">${c.imageUrls.map(url => `<img src="${esc(url)}" alt="" class="admin-thumb">`).join('')}</div>` : ''}
       <div class="row-actions">
         <button class="mini-action" data-edit-course="${esc(c.id)}">Editar</button>
         <button class="mini-action" data-delete-course="${esc(c.id)}">Eliminar</button>
@@ -2684,7 +2768,7 @@ function adminGallery(data) {
         ${draft?.url ? `<div class="admin-thumb-row">
           ${draft.kind === 'video'
             ? `<video src="${esc(draft.url)}" class="admin-thumb" muted loop playsinline></video>`
-            : `<img src="${esc(draft.url)}" alt="Miniatura" class="admin-thumb">`}
+            : `<img src="${esc(draft.url)}" alt="" class="admin-thumb">`}
           <button type="button" class="thumb-remove" data-clear-media-draft aria-label="Quitar archivo">✕</button>
         </div>` : `<div class="service-meta" style="margin-top:6px">Sin archivo seleccionado.</div>`}
       </div>
@@ -2712,7 +2796,7 @@ function adminGallery(data) {
     ${media.length ? media.map(m => `<div class="admin-service-row">
       <div class="admin-service-main">
         <div class="admin-thumb-row">
-          ${m.kind === 'video' ? `<video src="${esc(m.url)}" class="admin-thumb" muted loop playsinline></video>` : `<img src="${esc(m.url)}" alt="Miniatura" class="admin-thumb">`}
+          ${m.kind === 'video' ? `<video src="${esc(m.url)}" class="admin-thumb" muted loop playsinline></video>` : `<img src="${esc(m.url)}" alt="" class="admin-thumb">`}
           <div><div class="service-name">${esc(m.title || 'Sin título')}</div><div class="service-meta">${esc(m.category || 'Sin categoría')} · orden ${esc(m.order)} · ${m.kind === 'video' ? 'Video' : 'Foto'}</div></div>
         </div>
       </div>
@@ -2936,7 +3020,7 @@ function clientPhotosSection(clientId) {
     </div>
     ${photos.length ? `<div class="client-photo-grid">
       ${photos.map(p => `<div class="client-photo-item">
-        <img src="${esc(p.url)}" alt="${esc(p.note || 'Foto de consulta')}" data-client-photo-view="${esc(p.id)}">
+        <img src="${esc(p.url)}" alt="" data-client-photo-view="${esc(p.id)}">
         <span class="client-photo-phase phase-${esc(p.phase)}">${p.phase === 'before' ? 'Antes' : p.phase === 'reference' ? 'Ref.' : 'Después'}</span>
         <button class="thumb-remove" data-delete-client-photo="${esc(p.id)}">×</button>
       </div>`).join('')}
@@ -3003,7 +3087,7 @@ function aboutUsEditor(data) {
     </div>
     ${(d.images || []).length ? `<div class="admin-thumb-row">
       ${d.images.map((url, i) => `<div class="admin-thumb-wrap">
-        <img src="${esc(url)}" alt="Miniatura" class="admin-thumb">
+        <img src="${esc(url)}" alt="" class="admin-thumb">
         <button type="button" class="thumb-remove" data-remove-about-image="${i}">×</button>
       </div>`).join('')}
     </div>` : ''}
@@ -3034,171 +3118,6 @@ async function saveAboutUs() {
   render();
 }
 
-// ===== HOMEPAGE CONTENT EDITOR =====
-function adminHomepageEditor() {
-  const hp = state.admin.homepageDraft || state.salonConfig?.homepage || {};
-  // Lazily initialize the draft on first render
-  if (!state.admin.homepageDraft) {
-    state.admin.homepageDraft = JSON.parse(JSON.stringify(hp));
-  }
-  const d = state.admin.homepageDraft;
-  const hero = d.hero || {};
-  const spf = d.socialProof || {};
-  const svcS = d.servicesSection || {};
-  const whyU = d.whyUs || {};
-  const exp = d.experience || {};
-  const galS = d.gallerySection || {};
-  const ctaC = d.contactCta || {};
-  const ft = d.footer || {};
-  const saving = state.admin.configSaving;
-
-  // Helper for repeatable item lists (testimonials, why items, steps, stats, trust pills)
-  const itemList = (label, key, fields, maxItems = 10) => {
-    const items = d[key] || [];
-    return `<div class="form-field">
-      <label>${label}</label>
-      ${items.map((it, i) => `<div class="card" style="margin-bottom:8px;padding:10px">
-        ${fields.map(f => `<div class="form-field" style="margin-bottom:6px">
-          <label style="font-size:12px">${f.label} #${i+1}</label>
-          <input value="${esc(it[f.key] || '')}" data-hp-item="${key}" data-hp-item-idx="${i}" data-hp-item-field="${f.key}" placeholder="${esc(f.placeholder || '')}">
-        </div>`).join('')}
-        <button type="button" class="pill-button" style="color:var(--red);font-size:12px" data-hp-remove-item="${key}" data-hp-remove-idx="${i}">ELIMINAR</button>
-      </div>`).join('')}
-      ${items.length < maxItems ? `<button type="button" class="btn btn-outline btn-small" data-hp-add-item="${key}">+ AGREGAR</button>` : ''}
-    </div>`;
-  };
-
-  // Nested object items (e.g. whyUs.items, experience.steps)
-  const nestedItemList = (label, parentKey, childKey, fields, maxItems = 10) => {
-    const parent = d[parentKey] || {};
-    const items = parent[childKey] || [];
-    return `<div class="form-field">
-      <label>${label}</label>
-      ${items.map((it, i) => `<div class="card" style="margin-bottom:8px;padding:10px">
-        ${fields.map(f => `<div class="form-field" style="margin-bottom:6px">
-          <label style="font-size:12px">${f.label} #${i+1}</label>
-          ${f.type === 'textarea'
-            ? `<textarea rows="2" data-hp-nested="${parentKey}" data-hp-nested-child="${childKey}" data-hp-nested-idx="${i}" data-hp-nested-field="${f.key}" placeholder="${esc(f.placeholder || '')}">${esc(it[f.key] || '')}</textarea>`
-            : `<input value="${esc(it[f.key] || '')}" data-hp-nested="${parentKey}" data-hp-nested-child="${childKey}" data-hp-nested-idx="${i}" data-hp-nested-field="${f.key}" placeholder="${esc(f.placeholder || '')}">`}
-        </div>`).join('')}
-        <button type="button" class="pill-button" style="color:var(--red);font-size:12px" data-hp-remove-nested="${parentKey}" data-hp-remove-nested-child="${childKey}" data-hp-remove-nested-idx="${i}">ELIMINAR</button>
-      </div>`).join('')}
-      ${items.length < maxItems ? `<button type="button" class="btn btn-outline btn-small" data-hp-add-nested="${parentKey}" data-hp-add-nested-child="${childKey}">+ AGREGAR</button>` : ''}
-    </div>`;
-  };
-
-  return `<div class="card">
-    <div class="eyebrow">CONTENIDO DE LA PÁGINA DE INICIO</div>
-    <div class="subtitle" style="margin-bottom:16px">Edita todos los textos, estadísticas y secciones que aparecen en la página principal del sitio. Al guardar, el sitio público se actualiza al instante.</div>
-
-    <details class="config-section" open>
-      <summary class="config-section-title">🏠 Hero (encabezado principal)</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow (línea superior)</label><input value="${esc(hero.eyebrow || '')}" data-hp-field="hero.eyebrow" placeholder="Estudio de uñas de lujo · Guadalajara"></div>
-        <div class="form-field"><label>Titular principal</label><input value="${esc(hero.headline || '')}" data-hp-field="hero.headline" placeholder="Donde la elegancia se encuentra con el arte"></div>
-      </div>
-      <div class="form-field"><label>Párrafo descriptivo</label><textarea rows="3" data-hp-field="hero.lead" placeholder="Descripción del negocio que aparece debajo del titular...">${esc(hero.lead || '')}</textarea></div>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Botón principal</label><input value="${esc(hero.ctaPrimary || '')}" data-hp-field="hero.ctaPrimary" placeholder="Reservar mi cita"></div>
-        <div class="form-field"><label>Botón secundario</label><input value="${esc(hero.ctaSecondary || '')}" data-hp-field="hero.ctaSecondary" placeholder="Ver nuestro trabajo"></div>
-      </div>
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">🏅 Sellos de confianza (trust pills)</summary>
-      ${itemList('Sellos que aparecen debajo del hero', 'trustPills', [
-        { key: 'icon', label: 'Icono', placeholder: '★ ◇ ✧ ♥' },
-        { key: 'text', label: 'Texto', placeholder: '4.9 en Google' }
-      ], 6)}
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">📊 Prueba social (estadísticas)</summary>
-      <div class="form-field"><label>Eyebrow de la sección</label><input value="${esc(spf.eyebrow || '')}" data-hp-field="socialProof.eyebrow" placeholder="La confianza se gana"></div>
-      ${nestedItemList('Estadísticas destacadas', 'socialProof', 'stats', [
-        { key: 'figure', label: 'Cifra', placeholder: '+500' },
-        { key: 'label', label: 'Etiqueta', placeholder: 'Clientas atendidas' }
-      ], 6)}
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">💬 Testimonios</summary>
-      ${itemList('Reseñas de clientas', 'testimonials', [
-        { key: 'text', label: 'Reseña', placeholder: 'La atención al detalle es excepcional...' },
-        { key: 'author', label: 'Autora', placeholder: 'María G.' },
-        { key: 'role', label: 'Rol', placeholder: 'Clienta frecuente' }
-      ], 10)}
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">💅 Sección de servicios insignia</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow</label><input value="${esc(svcS.eyebrow || '')}" data-hp-field="servicesSection.eyebrow" placeholder="Servicios insignia"></div>
-        <div class="form-field"><label>Título</label><input value="${esc(svcS.title || '')}" data-hp-field="servicesSection.title" placeholder="Nuestros servicios principales"></div>
-      </div>
-      <div class="form-field"><label>Subtítulo</label><textarea rows="2" data-hp-field="servicesSection.subtitle" placeholder="Cada servicio se realiza con instrumental esterilizado...">${esc(svcS.subtitle || '')}</textarea></div>
-      <div class="form-field"><label>Texto del botón</label><input value="${esc(svcS.ctaText || '')}" data-hp-field="servicesSection.ctaText" placeholder="Ver la carta completa"></div>
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">✨ Sección "Por qué nosotros"</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow</label><input value="${esc(whyU.eyebrow || '')}" data-hp-field="whyUs.eyebrow" placeholder="Por qué Black Rococo"></div>
-        <div class="form-field"><label>Título</label><input value="${esc(whyU.title || '')}" data-hp-field="whyUs.title" placeholder="Lo que justifica el precio"></div>
-      </div>
-      <div class="form-field"><label>Párrafo descriptivo</label><textarea rows="3" data-hp-field="whyUs.lead" placeholder="No competimos por precio...">${esc(whyU.lead || '')}</textarea></div>
-      <div class="form-field"><label>Texto del botón</label><input value="${esc(whyU.ctaText || '')}" data-hp-field="whyUs.ctaText" placeholder="Reservar mi cita"></div>
-      ${nestedItemList('Puntos diferenciadores', 'whyUs', 'items', [
-        { key: 'title', label: 'Título', placeholder: 'Técnica rusa en seco' },
-        { key: 'text', label: 'Descripción', placeholder: 'Sin agua y sin cortes...', type: 'textarea' }
-      ], 8)}
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">🔄 Sección "Cómo funciona" (pasos)</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow</label><input value="${esc(exp.eyebrow || '')}" data-hp-field="experience.eyebrow" placeholder="La experiencia"></div>
-        <div class="form-field"><label>Título</label><input value="${esc(exp.title || '')}" data-hp-field="experience.title" placeholder="Cómo funciona"></div>
-      </div>
-      ${nestedItemList('Pasos del proceso', 'experience', 'steps', [
-        { key: 'num', label: 'Número', placeholder: '01' },
-        { key: 'name', label: 'Nombre', placeholder: 'Reservas' },
-        { key: 'text', label: 'Descripción', placeholder: 'Eliges servicio, día y hora...', type: 'textarea' }
-      ], 8)}
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">📸 Sección de galería (inicio)</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow</label><input value="${esc(galS.eyebrow || '')}" data-hp-field="gallerySection.eyebrow" placeholder="El trabajo"></div>
-        <div class="form-field"><label>Título</label><input value="${esc(galS.title || '')}" data-hp-field="gallerySection.title" placeholder="Resultados reales"></div>
-      </div>
-      <div class="form-field"><label>Texto del botón</label><input value="${esc(galS.ctaText || '')}" data-hp-field="gallerySection.ctaText" placeholder="Ver la galería completa"></div>
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">📞 Sección de contacto / CTA final</summary>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Eyebrow</label><input value="${esc(ctaC.eyebrow || '')}" data-hp-field="contactCta.eyebrow" placeholder="Reserva"></div>
-        <div class="form-field"><label>Título</label><input value="${esc(ctaC.title || '')}" data-hp-field="contactCta.title" placeholder="Reserva tu cita"></div>
-      </div>
-      <div class="form-field"><label>Subtítulo</label><input value="${esc(ctaC.subtitle || '')}" data-hp-field="contactCta.subtitle" placeholder="Atendemos a una clienta a la vez..."></div>
-      <div class="form-grid two-col">
-        <div class="form-field"><label>Botón principal</label><input value="${esc(ctaC.ctaPrimary || '')}" data-hp-field="contactCta.ctaPrimary" placeholder="Reservar mi cita"></div>
-        <div class="form-field"><label>Botón secundario</label><input value="${esc(ctaC.ctaSecondary || '')}" data-hp-field="contactCta.ctaSecondary" placeholder="Escribir por WhatsApp"></div>
-      </div>
-    </details>
-
-    <details class="config-section">
-      <summary class="config-section-title">📝 Footer y WhatsApp</summary>
-      <div class="form-field"><label>Descripción del footer</label><textarea rows="2" data-hp-field="footer.description" placeholder="Atelier de uñas en Ciudad Granja, Zapopan...">${esc(ft.description || '')}</textarea></div>
-      <div class="form-field"><label>Mensaje predeterminado de WhatsApp</label><input value="${esc(d.whatsappMessage || '')}" data-hp-field="whatsappMessage" placeholder="Hola, quiero información para agendar una cita ✨"></div>
-    </details>
-
-    <button class="btn btn-primary" style="margin-top:16px" data-save-homepage ${saving ? 'disabled' : ''}>${saving ? 'GUARDANDO...' : 'GUARDAR CONTENIDO DE INICIO'}</button>
-  </div>`;
-}
-
 function adminConfiguracion(data) {
   const cfg = state.admin.configDraft || state.salonConfig || {};
   const brand = state.config?.brand || {};
@@ -3206,6 +3125,7 @@ function adminConfiguracion(data) {
   const booking = state.config?.booking || {};
   const saving = state.admin.configSaving;
   // Hero images are edited live against state.salonConfig (single source of truth).
+  // Rendering them from configDraft would desync them from the click/input handlers.
   if (!state.salonConfig) state.salonConfig = {};
   if (!Array.isArray(state.salonConfig.heroImages)) state.salonConfig.heroImages = [];
   const heroImages = state.salonConfig.heroImages;
@@ -3220,7 +3140,6 @@ function adminConfiguracion(data) {
 
   return `<div class="card-list">
     ${state.admin.configSuccess ? `<div class="success-inline">${esc(state.admin.configSuccess)}</div>` : ''}
-    ${adminHomepageEditor()}
     ${aboutUsEditor(data)}
     <div class="card">
       <div class="eyebrow">MARCA</div>
@@ -3314,28 +3233,6 @@ function adminConfiguracion(data) {
   </div>`;
 }
 
-async function saveHomepage() {
-  const d = state.admin.homepageDraft;
-  if (!d) return;
-  state.admin.configSaving = true;
-  state.admin.error = '';
-  state.admin.configSuccess = '';
-  render();
-  try {
-    await api('/api/admin/settings/homepage', { method: 'POST', body: d });
-    await refreshPublicConfig();
-    await loadAdminDashboard();
-    // Re-sync the draft with saved data
-    state.admin.homepageDraft = JSON.parse(JSON.stringify(state.salonConfig?.homepage || {}));
-    state.admin.configSuccess = '✓ Contenido de la página de inicio guardado correctamente.';
-    setTimeout(() => { state.admin.configSuccess = ''; render(); }, 4000);
-  } catch (err) {
-    state.admin.error = err.message;
-  }
-  state.admin.configSaving = false;
-  render();
-}
-
 async function saveSettings(section, formData) {
   state.admin.configSaving = true;
   state.admin.error = '';
@@ -3403,17 +3300,16 @@ function render() {
           ? galleryScreen()
           : state.tab === 'academia'
             ? academiaScreen()
-            : homeScreen();
+            : state.tab === 'blog'
+              ? blogScreen()
+              : state.tab === 'mi-cuenta'
+                ? miCuentaScreen()
+                : homeScreen();
   app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.mode !== 'admin' && state.lightbox ? lightboxOverlay() : ''}`;
   // render() replaced the DOM, so every carousel element is new. Re-arm the
   // shared ticker so freshly-rendered carousels start cycling from now, rather
   // than inheriting the phase of an interval that began before this render.
   startCarouselTicker();
-
-  // .fade-up starts invisible — this is what reveals it. If it doesn't run, the
-  // page renders BLANK, so it must happen on every render, not just at boot.
-  initReveal();
-  initNavScroll();
   afterRender();
 }
 
@@ -3559,6 +3455,50 @@ app.addEventListener('click', async event => {
   if (target.hasAttribute('data-logout')) return adminLogout();
   if (target.hasAttribute('data-gcal-disconnect')) return disconnectGoogleCalendar();
 
+  // Client auth
+  if (target.dataset.showClientForm !== undefined) {
+    state.clientAuth.showForm = target.dataset.showClientForm;
+    state.clientAuth.error = '';
+    return render();
+  }
+  if (target.hasAttribute('data-client-login')) return clientLogin();
+  if (target.hasAttribute('data-client-register')) return clientRegister();
+  if (target.hasAttribute('data-client-logout')) return clientLogout();
+
+  // Blog (public)
+  if (target.dataset.blogOpen || target.closest('[data-blog-open]')) {
+    const id = target.dataset.blogOpen || target.closest('[data-blog-open]').dataset.blogOpen;
+    return loadBlogDetail(id);
+  }
+  if (target.hasAttribute('data-blog-back')) {
+    state.blogDetail = null;
+    return render();
+  }
+
+  // Blog (admin)
+  if (target.hasAttribute('data-new-blog')) {
+    state.blogAdmin.editingId = '__new__';
+    state.blogAdmin.coverImageDraft = '';
+    return render();
+  }
+  if (target.dataset.editBlog) {
+    state.blogAdmin.editingId = target.dataset.editBlog;
+    const post = (state.admin.data?.blogPosts || []).find(b => b.id === target.dataset.editBlog);
+    state.blogAdmin.coverImageDraft = post?.coverImageUrl || '';
+    return render();
+  }
+  if (target.hasAttribute('data-cancel-blog-edit')) {
+    state.blogAdmin.editingId = null;
+    state.blogAdmin.coverImageDraft = '';
+    return render();
+  }
+  if (target.dataset.deleteBlog) return deleteBlog(target.dataset.deleteBlog);
+  if (target.dataset.toggleBlogPublish) return toggleBlogPublish(target.dataset.toggleBlogPublish, target.dataset.published === '1');
+  if (target.hasAttribute('data-remove-blog-cover')) {
+    state.blogAdmin.coverImageDraft = '';
+    return render();
+  }
+
   // Hero image controls
   if (target.hasAttribute('data-add-hero-img')) {
     if (!state.salonConfig) state.salonConfig = {};
@@ -3571,45 +3511,6 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.hasAttribute('data-save-hero-images')) return saveHeroImages();
-  if (target.hasAttribute('data-save-homepage')) return saveHomepage();
-
-  // Homepage content editor: add/remove items in flat lists (trustPills, testimonials)
-  if (target.dataset.hpAddItem) {
-    const key = target.dataset.hpAddItem;
-    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
-    if (!Array.isArray(state.admin.homepageDraft[key])) state.admin.homepageDraft[key] = [];
-    const defaults = { trustPills: { icon: '★', text: '' }, testimonials: { text: '', author: '', role: '' } };
-    state.admin.homepageDraft[key].push(defaults[key] || {});
-    return render();
-  }
-  if (target.dataset.hpRemoveItem) {
-    const key = target.dataset.hpRemoveItem;
-    const idx = Number(target.dataset.hpRemoveIdx);
-    if (state.admin.homepageDraft?.[key]) state.admin.homepageDraft[key].splice(idx, 1);
-    return render();
-  }
-  // Nested items (socialProof.stats, whyUs.items, experience.steps)
-  if (target.dataset.hpAddNested) {
-    const pKey = target.dataset.hpAddNested;
-    const cKey = target.dataset.hpAddNestedChild;
-    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
-    if (!state.admin.homepageDraft[pKey]) state.admin.homepageDraft[pKey] = {};
-    if (!Array.isArray(state.admin.homepageDraft[pKey][cKey])) state.admin.homepageDraft[pKey][cKey] = [];
-    const defaults = {
-      stats: { figure: '', label: '' },
-      items: { title: '', text: '' },
-      steps: { num: String(state.admin.homepageDraft[pKey][cKey].length + 1).padStart(2, '0'), name: '', text: '' }
-    };
-    state.admin.homepageDraft[pKey][cKey].push(defaults[cKey] || {});
-    return render();
-  }
-  if (target.dataset.hpRemoveNested) {
-    const pKey = target.dataset.hpRemoveNested;
-    const cKey = target.dataset.hpRemoveNestedChild;
-    const idx = Number(target.dataset.hpRemoveNestedIdx);
-    if (state.admin.homepageDraft?.[pKey]?.[cKey]) state.admin.homepageDraft[pKey][cKey].splice(idx, 1);
-    return render();
-  }
 
   // Staff
   if (target.dataset.editStaff) {
@@ -3633,14 +3534,6 @@ app.addEventListener('click', async event => {
 
   // Client consultation photos
   if (target.dataset.deleteClientPhoto) return deleteClientPhoto(target.dataset.deleteClientPhoto);
-  if (target.dataset.lightboxOpen !== undefined) {
-    const gal = (state.media?.gallery || []);
-    const car = (state.media?.carousel || []);
-    const tiles = (gal.length ? gal : car).slice(0, 10);
-    const i = Number(target.dataset.lightboxOpen);
-    if (tiles.length) openLightbox(tiles, i);
-    return;
-  }
   if (target.dataset.aboutLightbox !== undefined) {
     const imgs = state.aboutImagesCache || [];
     const i = Number(target.dataset.aboutLightbox);
@@ -3692,7 +3585,6 @@ app.addEventListener('click', async event => {
     if (state.admin.tab === 'integraciones') loadGoogleCalendarStatus();
     if (state.admin.tab === 'configuracion') {
       state.admin.configDraft = JSON.parse(JSON.stringify(state.salonConfig || {}));
-      state.admin.homepageDraft = JSON.parse(JSON.stringify(state.salonConfig?.homepage || {}));
     }
     return render();
   }
@@ -3809,37 +3701,8 @@ app.addEventListener('input', event => {
   if (el.dataset.mbField && state.admin.manualBooking) state.admin.manualBooking[el.dataset.mbField] = el.value;
   if (el.dataset.aboutField && state.admin.aboutUsDraft) state.admin.aboutUsDraft[el.dataset.aboutField] = el.value;
   if (el.dataset.academiaField) state.academia[el.dataset.academiaField] = el.value;
+  if (el.dataset.clientAuthField) state.clientAuth[el.dataset.clientAuthField] = el.value;
   if (el.hasAttribute('data-rebook-whatsapp')) state.booking.rebook.whatsapp = el.value;
-  // Homepage content editor — dot-path fields like "hero.eyebrow"
-  if (el.dataset.hpField) {
-    if (!state.admin.homepageDraft) state.admin.homepageDraft = {};
-    const path = el.dataset.hpField.split('.');
-    if (path.length === 1) {
-      state.admin.homepageDraft[path[0]] = el.value;
-    } else {
-      if (!state.admin.homepageDraft[path[0]]) state.admin.homepageDraft[path[0]] = {};
-      state.admin.homepageDraft[path[0]][path[1]] = el.value;
-    }
-  }
-  // Flat item lists (trustPills, testimonials)
-  if (el.dataset.hpItem) {
-    const key = el.dataset.hpItem;
-    const idx = Number(el.dataset.hpItemIdx);
-    const field = el.dataset.hpItemField;
-    if (state.admin.homepageDraft?.[key]?.[idx]) {
-      state.admin.homepageDraft[key][idx][field] = el.value;
-    }
-  }
-  // Nested item lists (socialProof.stats, whyUs.items, experience.steps)
-  if (el.dataset.hpNested) {
-    const pKey = el.dataset.hpNested;
-    const cKey = el.dataset.hpNestedChild;
-    const idx = Number(el.dataset.hpNestedIdx);
-    const field = el.dataset.hpNestedField;
-    if (state.admin.homepageDraft?.[pKey]?.[cKey]?.[idx]) {
-      state.admin.homepageDraft[pKey][cKey][idx][field] = el.value;
-    }
-  }
   if (el.hasAttribute('data-admin-clients-search')) {
     state.admin.clientSearch = el.value;
     render();
@@ -3885,6 +3748,23 @@ app.addEventListener('change', async event => {
   }
   if (el.matches('[data-multi-upload-input]')) {
     return handleMultiUploadFiles(el);
+  }
+  if (el.matches('[data-blog-cover-input]')) {
+    const file = el.files?.[0];
+    if (!file) return;
+    const invalid = validateMediaFile(file);
+    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    state.admin.error = '';
+    state.blogAdmin.coverUploading = true;
+    render();
+    try {
+      state.blogAdmin.coverImageDraft = await uploadAdminImage(file);
+    } catch (err) {
+      state.admin.error = `No se pudo subir la imagen: ${err.message}`;
+    }
+    state.blogAdmin.coverUploading = false;
+    el.value = '';
+    return render();
   }
   if (el.matches('[data-staff-photo-input]')) {
     const file = el.files?.[0];
@@ -3977,6 +3857,12 @@ app.addEventListener('submit', event => {
     event.preventDefault();
     return createOrUpdateStaff(event.target);
   }
+  const blogForm = event.target.closest('[data-blog-form]');
+  if (blogForm) {
+    event.preventDefault();
+    createOrUpdateBlog(blogForm);
+    return;
+  }
   const postForm = event.target.closest('[data-post-form]');
   if (postForm) {
     event.preventDefault();
@@ -4018,13 +3904,6 @@ app.addEventListener('submit', event => {
     event.preventDefault();
     saveSettings(settingsForm.dataset.settingsForm, new FormData(settingsForm));
   }
-});
-
-// Back/forward now traverse real URLs, not hashes.
-window.addEventListener('popstate', () => {
-  setRouteFromUrl();
-  openPendingServiceFromUrl();
-  render();
 });
 
 window.addEventListener('hashchange', () => {

@@ -623,7 +623,13 @@
         "discountAmount": 35,
         "originalPrice": 350
       },
-      "remindersSent": {},
+      "remindersSent": {
+        "24h": {
+          "status": "setup_required",
+          "notificationId": "not_1012",
+          "attemptedAt": "2026-07-17T23:35:10.698Z"
+        }
+      },
       "createdAt": "2026-07-13T20:52:27.624Z",
       "googleEventId": null
     },
@@ -748,21 +754,38 @@
       "googleEventId": null
     }
   ],
-  "posts": [],
   "counters": {
     "appointment": 1011,
     "client": 1011,
     "post": 1000,
-    "notification": 1011,
+    "notification": 1012,
     "promotion": 1002,
     "course": 1002,
     "registration": 1002,
     "service": 1003,
     "media": 1002,
     "staff": 1002,
-    "clientPhoto": 1002
+    "clientPhoto": 1002,
+    "clientAccount": 1001,
+    "blogPost": 1001
   },
-  "notifications": [],
+  "notifications": [
+    {
+      "id": "not_1012",
+      "kind": "client_reminder",
+      "channel": "client_whatsapp_reminder",
+      "title": "Recordatorio clienta BR-1007",
+      "message": "Falta configurar CLIENT_REMINDER_WEBHOOK_URL. Usa el botón para enviar recordatorio manual a Walk.",
+      "appointmentId": "apt_1007",
+      "status": "setup_required",
+      "unread": true,
+      "actionLabel": "Enviar recordatorio",
+      "actionUrl": "https://api.whatsapp.com/send/?phone=5213331230000&text=Hola%20Walk%20%E2%9C%A8%20Te%20recordamos%20tu%20cita%20en%2024%20horas%20en%20Black%20Rococo.%0AServicio%3A%20Manicure%20ruso%0AFecha%3A%202026-07-18%0AHora%3A%2012%3A00%0ADirecci%C3%B3n%3A%20Calzada%20de%20los%20Pirules%20260%2C%20Ciudad%20Granja%2C%20Zapopan%0AResponde%20este%20mensaje%20si%20necesitas%20ayuda.",
+      "error": "",
+      "createdAt": "2026-07-17T23:35:10.698Z",
+      "updatedAt": "2026-07-17T23:35:10.698Z"
+    }
+  ],
   "promotions": [
     {
       "id": "promo_1001",
@@ -816,6 +839,7 @@
     }
   ],
   "media": [],
+  "posts": [],
   "staff": [
     {
       "id": "stf_1001",
@@ -839,6 +863,35 @@
       "note": "resultado",
       "phase": "after",
       "createdAt": "2026-07-13T15:50:39.713Z"
+    }
+  ],
+  "clientAccounts": [
+    {
+      "id": "ca_1001",
+      "clientId": "cli_1001",
+      "whatsapp": "3312345678",
+      "passwordHash": "1857586f1282acd90d7b46c9a59565ef:c29703635c56471f195eb45828756ef847b35cbbe79e3f24f162dd50046b052de4e710a224d3ae8ab6bdf4d3d7048f5c90e00cc9a3cde08609c1ee0234d313e7",
+      "displayName": "Test User",
+      "createdAt": "2026-07-17T23:35:07.725Z",
+      "updatedAt": "2026-07-17T23:35:07.725Z"
+    }
+  ],
+  "blogPosts": [
+    {
+      "id": "blog_1001",
+      "title": "Tendencias de uñas 2026",
+      "slug": "tendencias-de-unas-2026-mrpksgkw",
+      "excerpt": "Las tendencias más populares de este año",
+      "body": "<p>Este año las uñas minimalistas están en tendencia.</p>",
+      "coverImageUrl": "",
+      "published": true,
+      "tags": [
+        "tendencias",
+        "manicure"
+      ],
+      "author": "Black Rococo",
+      "createdAt": "2026-07-17T23:35:07.760Z",
+      "updatedAt": "2026-07-17T23:35:07.760Z"
     }
   ]
 }

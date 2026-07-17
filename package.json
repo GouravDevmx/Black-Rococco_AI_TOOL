@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "health": "node -e \"fetch('http://localhost:3000/api/health').then(r=>r.json()).then(console.log).catch(e=>{console.error(e);process.exit(1)})\"",
-    "test": "node test/schema.test.js && node test/store-diff.test.js && node test/scoping.test.js && node test/timezone.test.js && node test/carousel.test.js && node test/homepage.test.js",
+    "test": "node test/schema.test.js && node test/store-diff.test.js && node test/scoping.test.js && node test/timezone.test.js && node test/carousel.test.js",
     "test:regression": "./test/run-regression.sh"
   },
   "keywords": [

@@ -37,7 +37,6 @@ const { getSalonBySlug } = require('./lib/tenant');
 const { verifyStorageBucket } = require('./lib/uploads');
 const { SITE_URL } = require('./lib/config');
 const logger = require('./lib/logger');
-const seo = require('./lib/seo');
 
 // P0: the social-preview tags in index.html hardcode https://blackrococo.mx.
 // og:image MUST be an absolute URL that actually resolves — WhatsApp, Facebook
@@ -81,6 +80,8 @@ const adminDashboard = require('./lib/domains/admin-dashboard');
 const adminUploads = require('./lib/domains/admin-uploads');
 const googleCalendarDomain = require('./lib/domains/google-calendar');
 const adminSettings = require('./lib/domains/admin-settings');
+const clientAuthDomain = require('./lib/domains/client-auth');
+const blogsDomain = require('./lib/domains/blogs');
 
 // Resolved once at boot (see startServer below), not per-request. null in
 // local JSON-file mode.
@@ -131,7 +132,7 @@ async function handleApi(req, res, pathname, url) {
       // The homepage. Never touches appointments, clients, notifications or
       // client photos — which at scale is the bulk of the database.
       const db = await readDb(salonId, [
-        'services', 'media', 'promotions', 'courses', 'staff', 'posts'
+        'services', 'media', 'promotions', 'courses', 'staff', 'posts', 'blogPosts'
       ]);
       if (await publicConfig.handlePublicRoutes({ ...publicCtx, db })) return;
     }
@@ -139,6 +140,19 @@ async function handleApi(req, res, pathname, url) {
       const db = await readDb(salonId, ['courses', 'courseRegistrations', 'notifications']);
       if (await coursesDomain.handlePublicRoutes({ ...publicCtx, db })) return;
     }
+
+    // Client auth routes (register, login, me, logout, my appointments)
+    if (pathname.startsWith('/api/client/')) {
+      const db = await readDb(salonId, ['clients', 'clientAccounts', 'appointments', 'services']);
+      if (await clientAuthDomain.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
+
+    // Public blog routes (no login required to read)
+    if (pathname.startsWith('/api/blogs')) {
+      const db = await readDb(salonId, ['blogPosts']);
+      if (await blogsDomain.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
+
     if (await adminAuth.handlePublicRoutes(publicCtx)) return;
 
     // --- Admin routes (session required) ---
@@ -168,6 +182,7 @@ async function handleApi(req, res, pathname, url) {
       if (await coursesDomain.handleAdminRoutes(adminCtx)) return;
       if (await mediaDomain.handleAdminRoutes(adminCtx)) return;
       if (await postsDomain.handleAdminRoutes(adminCtx)) return;
+      if (await blogsDomain.handleAdminRoutes(adminCtx)) return;
       if (await googleCalendarDomain.handleAdminRoutes(adminCtx)) return;
       if (await adminSettings.handleAdminRoutes(adminCtx)) return;
     }
@@ -276,91 +291,12 @@ const server = http.createServer((req, res) => {
         if (!res.headersSent) json(res, 500, { error: 'Ocurrió un error inesperado.', errorId });
       });
     }
-    // SEO: real, server-rendered pages at real URLs (see lib/seo.js).
-    // Anything that isn't a static asset goes through here, so an unknown path
-    // gets a genuine 404 instead of the old behaviour — which returned 200 +
-    // the homepage for EVERY path, creating infinite duplicate URLs.
-    // sitemap.xml and robots.txt are GENERATED (they list a URL per active
-    // service), so they must be intercepted before serveStatic finds the stale
-    // files on disk — which listed #fragments Google never treats as pages.
-    if (!path.extname(pathname) || pathname === '/sitemap.xml' || pathname === '/robots.txt') {
-      return serveSeoPage(req, res, pathname).catch(err => {
-        logger.error(`SEO render failed ${pathname}`, err);
-        if (!res.headersSent) serveStatic(req, res, pathname);
-      });
-    }
-
     return serveStatic(req, res, pathname);
   } catch (err) {
     logger.error(`request handler threw ${req.method} ${pathname}`, err);
     if (!res.headersSent) text(res, 500, 'Internal error');
   }
 });
-
-// ---------------------------------------------------------------------------
-// Server-rendered SEO pages.
-//
-// The SPA is untouched: app.js still boots and replaces #app, so the interface
-// a human sees is identical. What changes is what a CRAWLER receives — real
-// content, a unique title, and route-specific structured data, instead of
-// "Cargando Black Rococo…".
-// ---------------------------------------------------------------------------
-const SEO_COLLECTIONS = ['services', 'courses', 'media', 'staff', 'promotions'];
-
-function canonicalOrigin(req) {
-  if (SITE_URL) return SITE_URL;
-  const host = req.headers.host || 'localhost';
-  const proto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim()
-    || (req.socket.encrypted ? 'https' : 'http');
-  return `${proto}://${host}`;
-}
-
-async function serveSeoPage(req, res, pathname) {
-  const origin = canonicalOrigin(req);
-  const db = await readDb(SALON_ID, SEO_COLLECTIONS);
-
-  // robots.txt and sitemap.xml are generated, not static: the sitemap lists a
-  // URL for every ACTIVE service, so adding a service to the admin panel makes
-  // it discoverable to Google automatically. The old sitemap was a static file
-  // listing #fragments, which Google does not treat as separate pages at all.
-  if (pathname === '/sitemap.xml') {
-    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
-    return res.end(seo.buildSitemap(db, origin));
-  }
-  if (pathname === '/robots.txt') {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
-    return res.end(seo.buildRobots(origin));
-  }
-
-  const page = seo.resolvePage(pathname, db);
-
-  const template = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
-
-  if (!page) {
-    // A REAL 404. Previously every unknown path returned 200 with the homepage —
-    // a soft 404, which Google treats as a quality problem and which spawned
-    // unlimited duplicate URLs.
-    const html = template
-      .replace(/<!--SEO_HEAD-->/, `
-  <title>Página no encontrada | Black Rococo</title>
-  <meta name="robots" content="noindex, follow">
-  <link rel="canonical" href="${origin}/">`)
-      .replace(/<!--SEO_BODY-->/, `<article>
-        <h1>Página no encontrada</h1>
-        <p>La página que buscas no existe o cambió de dirección.</p>
-        <p><a href="/">Ir al inicio</a> · <a href="/servicios">Ver servicios</a> · <a href="/reservar">Reservar cita</a></p>
-      </article>`);
-    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(html);
-  }
-
-  const html = template
-    .replace(/<!--SEO_HEAD-->/, seo.buildHead(page, db, origin))
-    .replace(/<!--SEO_BODY-->/, seo.renderBody(page, db, origin));
-
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-  res.end(html);
-}
 
 // STORY 1.5 — deployment preflight.
 //

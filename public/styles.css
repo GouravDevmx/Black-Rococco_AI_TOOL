@@ -4,82 +4,31 @@
    ========================================================== */
 
 :root {
-  /* ============================================================
-     BLACK ROCOCO — DESIGN TOKENS
-     Ported 1:1 from BlackRococoDesignSystem.jsx (const T).
-     ============================================================
-     THE RULE: gold is an accent, never a field. It marks, divides
-     and highlights — it does not fill large areas. That single
-     restraint is what separates luxury from "gold-themed".
-     ============================================================ */
-
-  /* Colour — exact values from the design system */
-  --black:      #111111;
-  --charcoal:   #2A2A2A;
-  --off-white:  #FAF8F5;
-  --warm-ivory: #F5F0E8;
-  --soft-beige: #E8E0D4;
-  --gold:       #C6A86B;
-  --gold-light: #D4B87A;
-  --gold-dark:  #A8875B;
-  --text:       #111111;
-  --text-sec:   #5A5550;
-  /* DELIBERATE DEVIATION from the design system's #8A8580.
-     That value is 3.45:1 on off-white. It is used for eyebrows and stat labels
-     at ~11px — small text — where WCAG AA requires 4.5:1, so it FAILED the
-     brief's own accessibility requirement. #726D67 is the nearest value that
-     passes (4.83:1) while keeping the same warm-grey hue. The difference is
-     imperceptible; the compliance is not. */
-  --text-muted: #726D67;
-  --text-muted-decorative: #8A8580;  /* original — safe for large/inert text only */
-  --border:     #E0DBD4;
-  --white:      #FFFFFF;
-
-  /* Type */
+  --page: #E9E3D6;
+  --surface: #FBF8F2;
+  --card: #FFFFFF;
+  --text: #1C1914;
+  --text-secondary: rgba(28, 25, 20, .72);
+  --muted: rgba(28, 25, 20, .56);
+  --gold: #B08D57;
+  --gold-light: #C6A45E;
+  --gold-text: #8A6D35;
+  --gold-glow: rgba(176, 141, 87, .18);
+  --red: #8E2237;
+  --red-hover: #A22940;
+  --red-tint: #F7E9E6;
+  --border: rgba(176, 141, 87, .2);
+  --border-strong: rgba(176, 141, 87, .4);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 20px rgba(0,0,0,.08);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.12);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
   --font-display: 'Cormorant Garamond', Georgia, serif;
-  --font-body: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
-
-  /* Motion */
-  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
-  --transition: .4s var(--ease);
-
-  /* Rhythm — clamp() gives 80px on mobile, 120px on desktop, fluid between */
-  --section-y: clamp(80px, 10vw, 120px);
-
-  /* ---- Legacy aliases ----
-     The ADMIN panel references these names. Mapped here so the client-side
-     redesign cannot break the admin UI, which is explicitly out of scope. */
-  --page:           var(--off-white);
-  --surface:        var(--off-white);
-  --card:           var(--white);
-  --ink:            var(--black);
-  --paper:          var(--off-white);
-  --ivory:          var(--warm-ivory);
-  --text-secondary: var(--text-sec);
-  --muted:          var(--text-muted);
-  --gold-text:      #7A5F35;   /* 6.2:1 on off-white — AA for body-size gold type */
-  --gold-deep:      var(--gold-dark);
-  --gold-glow:      rgba(198, 168, 107, .14);
-  --gold-whisper:   rgba(198, 168, 107, .14);
-  --gold-hairline:  rgba(198, 168, 107, .55);
-  --line:           var(--border);
-  --line-strong:    #C9C2B8;
-  --border-strong:  #C9C2B8;
-  --red:            #8E2237;
-  --red-hover:      #A22940;
-  --red-tint:       #F7E9E6;
-
-  --shadow-sm: 0 1px 2px rgba(17,17,17,.04);
-  --shadow-md: 0 8px 24px rgba(0,0,0,.06);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,.06);
-
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 4px;
-  --radius-pill: 100px;
-
-  --space-section: clamp(80px, 10vw, 120px);
-  --space-section-mobile: 80px;
+  --font-body: 'Jost', system-ui, -apple-system, sans-serif;
+  --transition: .2s ease;
 }
 
 /* ===== RESET & BASE ===== */
@@ -88,20 +37,13 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--paper);
+  background: var(--page);
   color: var(--text);
   font-family: var(--font-body);
   font-weight: 400;
-  font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'kern' 1, 'liga' 1;
 }
-
-/* Reading measure. Beyond ~68 characters the eye loses the line — the single
-   most common failure in "luxury" layouts that otherwise look expensive. */
-p { max-width: 66ch; }
 button, input, textarea, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 a { color: inherit; }
@@ -133,59 +75,27 @@ img, video { max-width: 100%; height: auto; display: block; }
 .admin-screen { animation: fadeIn .3s ease; padding: 18px 16px 40px; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* ============================================================
-   SIGNATURE — THE ENGRAVED HAIRLINE
-   ============================================================
-   A single champagne rule. It underscores the wordmark, opens every
-   section, and frames the hero. It is the only place gold appears as
-   anything other than small type.
-
-   It is drawn, not placed: on scroll-in it draws from the centre
-   outwards, like an engraver's stroke. That is the one animated
-   flourish in the entire design, and it is the thing the page is
-   remembered by.
-   ============================================================ */
-.rule {
-  width: 44px;
-  height: 1px;
-  background: var(--gold);
-  border: none;
-  margin: 0;
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 1.1s var(--ease);
-}
-.reveal.is-in .rule,
-.rule.is-in { transform: scaleX(1); }
-
-/* ===== TYPOGRAPHY ===== */
+/* ===== TYPOGRAPHY (Story 9) ===== */
 .title {
   font-family: var(--font-display);
-  font-size: 30px;          /* H2 mobile */
-  font-weight: 400;         /* Cormorant is elegant light. Bold cheapens it. */
-  letter-spacing: -0.01em;
-  line-height: 1.15;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  line-height: 1.2;
   color: var(--text);
-  margin: 0;
 }
 .subtitle {
-  font-size: 15px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.7;
+  line-height: 1.6;
   font-weight: 400;
-  max-width: 60ch;
 }
-
-/* The eyebrow is structural, not decorative: it names what the section IS.
-   Wide tracking + tiny size is the oldest trick in luxury print, and it works
-   because it forces the eye to slow down. */
 .eyebrow {
   font-size: 10px;
-  letter-spacing: .34em;
+  letter-spacing: 3px;
   color: var(--gold-text);
   text-transform: uppercase;
   font-weight: 500;
-  line-height: 1;
 }
 
 /* ===== BRAND HEADER ===== */
@@ -219,9 +129,8 @@ img, video { max-width: 100%; height: auto; display: block; }
 }
 .social-proof strong { color: var(--gold-text); font-weight: 500; }
 
-/* ===== HERO (legacy — overridden by .screen.lux hero below) ===== */
-/* Kept for backward-compatibility but suppressed in the luxury layout. */
-.screen:not(.lux) .hero {
+/* ===== HERO ===== */
+.hero {
   margin: 0 16px;
   min-height: 420px;
   border-radius: var(--radius-md);
@@ -229,7 +138,7 @@ img, video { max-width: 100%; height: auto; display: block; }
   overflow: hidden;
   background: radial-gradient(circle at 20% 20%, var(--gold-glow), transparent 30%), linear-gradient(135deg, #3a3129, #12110f 70%);
 }
-.screen:not(.lux) .screen:not(.lux) .hero::before {
+.hero::before {
   content: '';
   position: absolute;
   inset: 16px;
@@ -238,8 +147,8 @@ img, video { max-width: 100%; height: auto; display: block; }
   z-index: 1;
   border-radius: 2px;
 }
-.screen:not(.lux) .hero-has-image { min-height: 380px; }
-.screen:not(.lux) .hero-img-wrap { position: absolute; inset: 0; z-index: 0; }
+.hero-has-image { min-height: 380px; }
+.hero-img-wrap { position: absolute; inset: 0; z-index: 0; }
 /* All hero slides live in the DOM at once, stacked. Advancing the carousel
    toggles `.active`, so the browser crossfades two layers it has already
    decoded — no DOM teardown, no re-render, no blink, no image re-download. */
@@ -253,12 +162,12 @@ img, video { max-width: 100%; height: auto; display: block; }
 /* The caption text is swapped in place, so give it a gentle fade too. */
 .hero-title,
 .hero-subtitle { transition: opacity .3s ease; }
-.screen:not(.lux) .hero-img-overlay {
+.hero-img-overlay {
   position: absolute; inset: 0;
   z-index: 1;
   background: linear-gradient(180deg, rgba(10,8,6,.1) 0%, rgba(10,8,6,.55) 55%, rgba(10,8,6,.82) 100%);
 }
-.screen:not(.lux) .hero-overlay {
+.hero-overlay {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   padding: 80px 22px 24px;
@@ -266,12 +175,12 @@ img, video { max-width: 100%; height: auto; display: block; }
   color: #F2ECDF;
   z-index: 2;
 }
-.screen:not(.lux) .hero-has-image .hero-overlay {
+.hero-has-image .hero-overlay {
   position: relative;
   padding: 28px 22px 32px;
   background: none;
 }
-.screen:not(.lux) .hero-title {
+.hero-title {
   font-family: var(--font-display);
   font-style: italic;
   font-size: 30px;
@@ -279,7 +188,7 @@ img, video { max-width: 100%; height: auto; display: block; }
   color: #fff;
   text-shadow: 0 2px 12px rgba(0,0,0,.35);
 }
-.screen:not(.lux) .hero-subtitle {
+.hero-subtitle {
   margin-top: 10px;
   font-size: 12px;
   letter-spacing: 2px;
@@ -287,18 +196,18 @@ img, video { max-width: 100%; height: auto; display: block; }
   text-shadow: 0 1px 6px rgba(0,0,0,.3);
 }
 
-.screen:not(.lux) .hero-art {
+.hero-art {
   position: absolute; inset: 0;
   display: grid; place-items: center;
   background: linear-gradient(135deg, #1a0e0e, #2d1515 40%, #1a1008);
 }
-.screen:not(.lux) .screen:not(.lux) .hero-art::before {
+.hero-art::before {
   content: '';
   position: absolute; inset: 0;
   background: radial-gradient(ellipse at 30% 50%, rgba(176,141,87,.18), transparent 60%),
     radial-gradient(ellipse at 75% 30%, rgba(176,141,87,.12), transparent 50%);
 }
-.screen:not(.lux) .hero-art-inner {
+.hero-art-inner {
   font-size: 64px; color: rgba(176,141,87,.5);
   font-weight: 300; position: relative; z-index: 1;
   animation: heroGlow 3s ease-in-out infinite;
@@ -312,76 +221,35 @@ img, video { max-width: 100%; height: auto; display: block; }
 .section-tight { padding: 18px 16px 0; }
 .section-tight.cta-row { padding-top: 20px; padding-bottom: 4px; }
 
-/* ============================================================
-   BUTTONS
-   ============================================================
-   Primary is INK, not gold. This is the single largest lever on
-   perceived value in the whole redesign: a gold-filled button reads
-   as mid-market beauty; a black button reads as Dior, Chanel, Aesop.
-   Gold survives only as the focus ring and the hairline.
-   ============================================================ */
+/* ===== BUTTONS ===== */
 .btn {
   border: none;
-  min-height: 54px;
-  padding: 0 32px;
-  border-radius: 0;
-  letter-spacing: .18em;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  font-family: var(--font-body);
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 2px;
+  letter-spacing: .12em;
+  font-size: 12px;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   text-decoration: none;
   width: 100%;
-  cursor: pointer;
-  position: relative;
-  transition: background var(--transition), color var(--transition), transform var(--transition);
+  transition: transform var(--transition), box-shadow var(--transition);
 }
-
 .btn-primary {
-  background: var(--ink);
-  color: var(--paper);
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(176,141,87,.3);
 }
-/* The hover is a hairline of champagne surfacing from beneath the ink —
-   the gilt showing through the black. */
-.btn-primary::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 1px;
-  background: var(--gold);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform .5s var(--ease);
-}
-.btn-primary:hover::after { transform: scaleX(1); }
-.btn-primary:hover { background: var(--ink-soft); }
-.btn-primary:active { transform: translateY(1px); }
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--line-strong);
-  color: var(--ink);
-}
-.btn-outline:hover { border-color: var(--ink); background: transparent; }
-
-.btn-dark { background: var(--ink); color: var(--paper); }
-.btn-small { width: auto; min-height: 44px; padding: 0 22px; font-size: 10px; }
-.btn:disabled { opacity: .3; cursor: default; }
-
-/* Champagne focus ring — visible, on-brand, and WCAG-compliant. */
-.btn:focus-visible,
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 3px;
-}
+.btn-primary:hover { box-shadow: 0 6px 24px rgba(176,141,87,.4); }
+.btn-primary:active { transform: scale(.97); box-shadow: 0 2px 8px rgba(176,141,87,.2); }
+.btn-dark { background: var(--text); color: var(--surface); }
+.btn-outline { background: transparent; border: 1px solid var(--border-strong); color: var(--gold-text); }
+.btn-outline:hover { border-color: var(--gold); background: var(--gold-glow); }
+.btn-small { width: auto; min-height: 38px; padding: 0 16px; font-size: 10px; }
+.btn:disabled { opacity: .35; cursor: default; }
 
 .pill-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pill-button {
@@ -420,17 +288,14 @@ textarea:focus-visible {
 .specialties span { color: var(--gold-text); font-size: 13px; font-weight: 500; }
 
 /* ===== SECTIONS ===== */
-.section {
-  padding: var(--space-section-mobile) 24px 0;
-}
+.section { padding: 36px 16px 0; }
 .section-head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 0 0 32px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 14px;
 }
-.section-head .rule { margin: 2px 0; }
 
 /* ===== CARDS ===== */
 .card-list { display: flex; flex-direction: column; gap: 12px; }
@@ -1147,8 +1012,8 @@ input[data-admin-clients-search] { width: 100%; box-sizing: border-box; }
   .phone-shell { max-width: 760px; }
   .brand-header { padding: 34px 32px 28px; }
   .logo { font-size: 42px; letter-spacing: 8px; }
-  .screen:not(.lux) .hero { min-height: 500px; margin: 0 24px; }
-  .screen:not(.lux) .hero-title { font-size: 42px; max-width: 560px; }
+  .hero { min-height: 500px; margin: 0 24px; }
+  .hero-title { font-size: 42px; max-width: 560px; }
   .section, .section-tight, .booking-step, .page-header, .progress { padding-left: 24px; padding-right: 24px; }
   .carousel { padding-left: 24px; padding-right: 24px; }
   .image-card { flex-basis: 310px; height: 380px; }
@@ -1217,9 +1082,9 @@ input[data-admin-clients-search] { width: 100%; box-sizing: border-box; }
   }
   .brand-header { padding-top: 42px; }
   .logo { font-size: 52px; }
-  .screen:not(.lux) .hero { max-width: 1120px; min-height: 560px; margin-left: auto; margin-right: auto; }
-  .screen:not(.lux) .hero-overlay { padding: 140px 54px 52px; }
-  .screen:not(.lux) .hero-title { font-size: 58px; max-width: 680px; }
+  .hero { max-width: 1120px; min-height: 560px; margin-left: auto; margin-right: auto; }
+  .hero-overlay { padding: 140px 54px 52px; }
+  .hero-title { font-size: 58px; max-width: 680px; }
   .section-tight.cta-row { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; align-items: center; gap: 28px; }
   .section-tight.cta-row .fomo { justify-content: flex-start; padding-top: 0; }
   .section { padding-top: 54px; }
@@ -1962,1306 +1827,49 @@ img.img-broken::after {
 .hero-carousel { z-index: 0; }
 .hero .hero-img-overlay { z-index: 1; }
 
-
-/* ============================================================
-   LUXURY HOMEPAGE — ported from BlackRococoDesignSystem.jsx
-   ============================================================ */
-
-::selection { background: rgba(198,168,107,.13); color: var(--black); }
-
-.lux { padding-bottom: 0; }
-
-/* ---------- TYPE SCALE ---------- */
-.h1 {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(2.1rem, 5.4vw, 4rem);   /* 34px -> 64px, per brief */
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  margin: 0;
-  max-width: 16ch;
-}
-.h1 em { font-style: italic; color: var(--gold); }
-
-.h2 {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(1.75rem, 3.6vw, 3rem);  /* 28px -> 48px */
-  line-height: 1.15;
-  letter-spacing: -0.005em;
-  color: var(--text);
-  margin: 0;
-}
-.h2.on-dark { color: var(--off-white); }
-
-.lead {
-  font-family: var(--font-body);
-  font-size: 1rem;
-  font-weight: 300;
-  line-height: 1.75;
-  color: var(--text-sec);
-  margin: 0;
-  max-width: 62ch;   /* reading measure — beyond this the eye loses the line */
-}
-.lead.on-dark { color: rgba(250,248,245,.62); }
-.center-lead { margin-left: auto; margin-right: auto; }
-
-.eyebrow {
-  font-family: var(--font-body);
-  font-size: .7rem;
-  font-weight: 400;
-  letter-spacing: .22em;
+/* =========================================================================
+   BLOG
+   ========================================================================= */
+.blog-card { cursor: pointer; overflow: hidden; }
+.blog-card:hover { box-shadow: 0 4px 16px rgba(176,141,87,.15); }
+.blog-card-cover { margin: -18px -18px 14px; }
+.blog-card-cover img { width: 100%; height: 160px; object-fit: cover; display: block; }
+.blog-cover { margin: 0 0 4px; }
+.blog-cover img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 0 0 12px 12px; }
+.blog-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.blog-tag {
+  font-size: 10px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  line-height: 1;
-}
-.eyebrow-gold { color: var(--gold); }
-
-/* The one repeated ornament: a gold rule that fades at both ends. */
-.gold-divider {
-  display: block;
-  height: 1px;
-  margin: 22px 0;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
-.center .gold-divider { margin-left: auto; margin-right: auto; }
-
-/* ---------- SECTIONS ---------- */
-.section { padding: var(--section-y) 24px; }
-.section-inner { max-width: 1200px; margin: 0 auto; }
-.section-ivory { background: var(--warm-ivory); }
-.section-black { background: var(--black); }
-.center { text-align: center; }
-.center .lead { margin-left: auto; margin-right: auto; }
-.section-head { margin-bottom: 56px; }
-.section-head .h2 { margin-bottom: 18px; }
-
-/* ---------- FADE UP ---------- */
-.fade-up { opacity: 0; transform: translateY(28px); transition: opacity .9s ease, transform .9s ease; }
-.fade-up.vis { opacity: 1; transform: none; }
-
-/* ---------- HERO ---------- */
-.hero {
-  position: relative;
-  min-height: 100vh;
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  padding: 120px 24px 80px;
-  background: var(--off-white);
-  overflow: hidden;
-}
-/* Barely-there gold dot field — texture, not pattern. 2.5% opacity. */
-.hero-dots {
-  position: absolute; inset: 0;
-  opacity: .025;
-  background-image: radial-gradient(var(--gold) 1px, transparent 1px);
-  background-size: 44px 44px;
-}
-.hero-grid {
-  position: relative; z-index: 1;
-  max-width: 1200px; width: 100%; margin: 0 auto;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
-}
-.hero-content { display: flex; flex-direction: column; gap: 28px; align-items: flex-start; }
-.hero-actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-.center-actions { justify-content: center; }
-
-.hero-art { position: relative; }
-.hero-art-frame {
-  position: relative;
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-  background: var(--warm-ivory);
-}
-.nail-art { width: 100%; height: 100%; display: block; }
-/* Corner brackets — a framing device borrowed from editorial layout. */
-.corner { position: absolute; pointer-events: none; }
-.corner-br { bottom: 0; right: 0; width: 100px; height: 100px; border-top: 1px solid rgba(198,168,107,.25); border-left: 1px solid rgba(198,168,107,.25); }
-.corner-tl { top: 0; left: 0; width: 60px; height: 60px; border-bottom: 1px solid rgba(198,168,107,.15); border-right: 1px solid rgba(198,168,107,.15); }
-
-/* ---------- TRUST PILLS ---------- */
-.trust-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-.trust-pill {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-body);
-  font-size: .78rem;
-  color: var(--text-sec);
-  padding: 10px 20px;
+  color: var(--gold-text);
+  background: var(--gold-glow);
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-  transition: border-color var(--transition);
+  padding: 3px 10px;
+  border-radius: 12px;
 }
-.trust-pill:hover { border-color: rgba(198,168,107,.4); }
-.tp-mark { color: var(--gold); }
+.blog-body { line-height: 1.7; font-size: 15px; color: var(--muted); margin-top: 18px; }
+.blog-body p { margin-bottom: 14px; }
+.blog-body h2, .blog-body h3 { color: var(--text); margin: 24px 0 10px; font-family: var(--font-display, 'Cormorant Garamond', serif); }
+.blog-body img { max-width: 100%; border-radius: 8px; margin: 12px 0; }
+.blog-body ul, .blog-body ol { padding-left: 22px; margin-bottom: 14px; }
 
-/* ---------- BUTTONS ---------- */
-.btn-primary, .btn-secondary {
-  font-family: var(--font-body);
-  font-size: .78rem;
-  font-weight: 400;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all var(--transition);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-}
-/* INK, not gold. This single choice is the largest lever on perceived value:
-   a gold-filled button reads mid-market; a black one reads Dior. */
-.btn-primary {
-  background: var(--black);
-  color: #fff;
-  border: none;
-  padding: 18px 44px;
-}
-.btn-primary:hover { background: var(--charcoal); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-.btn-primary.gold { background: var(--gold); color: var(--black); }
-.btn-primary.gold:hover { background: var(--gold-light); }
-
-.btn-secondary {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 17px 40px;
-}
-.btn-secondary:hover { border-color: var(--gold); color: var(--gold-text); }
-.btn-secondary.dark { color: #AAA; border-color: #444; }
-.btn-secondary.dark:hover { border-color: var(--gold); color: var(--gold); }
-
-/* Champagne focus ring — visible, on-brand, WCAG-compliant. */
-.btn-primary:focus-visible,
-.btn-secondary:focus-visible,
-.svc-card-cta:focus-visible,
-.footer-link:focus-visible,
-.ig-tile:focus-visible,
-.nav-link:focus-visible,
-a:focus-visible, button:focus-visible,
-input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 3px;
-}
-
-/* ---------- STATS ---------- */
-.stats-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 48px; max-width: 840px; margin: 0 auto;
-}
-.stat-figure {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(2.2rem, 4vw, 3.2rem);
-  line-height: 1;
-  color: var(--text);
-}
-.stat-label {
-  margin-top: 12px;
-  font-size: .68rem;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-/* ---------- REVIEWS ---------- */
-.review-carousel { position: relative; max-width: 600px; margin: 64px auto 0; }
-.review-viewport { position: relative; min-height: 220px; }
-.review-card {
-  position: absolute; inset: 0;
-  padding: 44px;
-  background: #fff;
-  border: 1px solid var(--border);
-  margin: 0;
-  opacity: 0;
-  transition: opacity .7s var(--ease);
-  display: flex; flex-direction: column; justify-content: center; gap: 22px;
-}
-.review-card.active { opacity: 1; }
-.review-card::before {
-  content: '';
-  position: absolute; top: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 60px; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
-}
-.review-card p {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-style: italic;
-  font-weight: 300;
-  line-height: 1.5;
-  color: var(--text);
-  margin: 0;
-  max-width: none;
-}
-.review-card cite { font-style: normal; display: block; }
-.review-card cite strong {
-  display: block;
-  font-size: .82rem; font-weight: 500; color: var(--text);
-}
-.review-card cite span {
-  display: block; margin-top: 4px;
-  font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted);
-}
-.review-dots { position: static; transform: none; margin-top: 26px; justify-content: center; }
-.review-dots .ac-dot { border: 1px solid var(--gold); background: transparent; width: 8px; height: 8px; }
-.review-dots .ac-dot.active { background: var(--gold); transform: none; }
-
-/* ---------- SERVICE CARDS ---------- */
-.service-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-.svc-card {
-  background: #fff;
-  padding: 0 0 36px;
-  border: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 0;
-  cursor: pointer;
-  transition: border-color .5s var(--ease), transform .5s var(--ease), box-shadow .5s var(--ease);
-}
-.svc-card:hover {
-  border-color: rgba(198,168,107,.45);
-  transform: translateY(-6px);
-  box-shadow: 0 16px 48px rgba(0,0,0,.06);
-}
-.svc-card-media {
-  position: relative;
-  aspect-ratio: 4 / 5;    /* portrait: editorial, not e-commerce square */
-  overflow: hidden;
-  background: var(--warm-ivory);
-  margin-bottom: 32px;
-}
-.svc-card-media .ac-slide { transition: opacity .7s var(--ease), transform 1.4s var(--ease); }
-.svc-card:hover .ac-slide.active { transform: scale(1.04); }
-.svc-card-blank { position: absolute; inset: 0; background: linear-gradient(150deg, var(--warm-ivory), var(--soft-beige)); }
-.svc-card-title {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.6rem;
-  line-height: 1.2;
-  margin: 0 32px 10px;
-  color: var(--text);
-}
-.svc-card-copy {
-  margin: 0 32px 22px;
-  font-size: .88rem;
-  line-height: 1.7;
-  color: var(--text-sec);
-  max-width: none;
-}
-.svc-card-foot {
-  display: flex; align-items: baseline; justify-content: space-between;
-  margin: auto 32px 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-.svc-card-time { font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-muted); }
-.svc-card-price { font-family: var(--font-display); font-size: 1.6rem; color: var(--text); }
-.svc-card-price .price-was { font-size: .95rem; color: var(--text-muted); text-decoration: line-through; margin-right: 8px; }
-/* A hairline text CTA. A filled button on every card would shout. */
-.svc-card-cta {
-  align-self: flex-start;
-  margin: 22px 32px 0;
-  background: none; border: none;
-  border-bottom: 1px solid var(--black);
-  padding: 0 0 3px;
-  font-family: var(--font-body);
-  font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--black); cursor: pointer;
-  transition: color var(--transition), border-color var(--transition);
-}
-.svc-card-cta:hover { color: var(--gold-text); border-color: var(--gold); }
-
-/* ---------- WHY (on black) ---------- */
-.why-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
-.why-list { list-style: none; margin: 0; padding: 0; }
-.why-list li {
-  display: grid; grid-template-columns: 24px 1fr; gap: 18px;
-  padding: 26px 0;
-  border-bottom: 1px solid rgba(255,255,255,.09);
-}
-.why-list li:first-child { padding-top: 0; }
-.why-list li:last-child { border-bottom: none; }
-.why-mark { width: 14px; height: 1px; background: var(--gold); margin-top: 13px; }
-.why-list strong {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 1.3rem; font-weight: 400;
-  color: var(--off-white);
-  margin-bottom: 6px;
-}
-.why-list p { margin: 0; font-size: .88rem; line-height: 1.7; color: rgba(250,248,245,.58); max-width: none; }
-
-/* ---------- INSTAGRAM / GALLERY GRID ---------- */
-.ig-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.ig-tile {
-  position: relative; aspect-ratio: 1; overflow: hidden;
-  cursor: pointer; padding: 0; border: none; background: var(--warm-ivory);
-}
-.ig-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.2s var(--ease); }
-.ig-tile:hover img { transform: scale(1.06); }
-.ig-overlay {
-  position: absolute; inset: 0;
-  background: rgba(17,17,17,.5);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity var(--transition);
-  color: #fff;
-}
-.ig-tile:hover .ig-overlay { opacity: 1; }
-
-/* ---------- STEPS ---------- */
-.steps-row {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 40px; margin-top: 56px; text-align: left;
-}
-.step-num {
-  font-family: var(--font-display);
-  font-size: 2rem; font-weight: 300;
-  color: var(--gold);
-  line-height: 1;
-}
-.step-name {
-  margin: 14px 0 8px;
-  font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 500;
-  color: var(--text);
-}
-.step p { margin: 0; font-size: .86rem; line-height: 1.7; color: var(--text-sec); max-width: none; }
-
-/* ---------- CONTACT ---------- */
-.contact-detail { margin-top: 48px; }
-.contact-detail p { margin: 0 auto; font-size: .9rem; line-height: 1.8; color: rgba(250,248,245,.62); max-width: 40ch; }
-.contact-hours { margin-top: 8px !important; color: var(--gold) !important; }
-.section-black .map-embed { margin-top: 40px; border: 1px solid rgba(255,255,255,.1); }
-
-/* ---------- FOOTER ---------- */
-.lux-footer { background: var(--black); padding: 80px 24px 40px; border-top: 1px solid rgba(255,255,255,.08); }
-.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; }
-.footer-mark {
-  font-family: var(--font-display);
-  font-size: 1.4rem; letter-spacing: .2em; text-transform: uppercase;
-  color: var(--off-white);
-}
-.footer-note { margin: 16px 0 0; font-size: .82rem; line-height: 1.75; color: rgba(250,248,245,.45); max-width: 34ch; }
-.footer-head {
-  font-size: .7rem; letter-spacing: .18em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 18px;
-}
-.footer-link {
-  display: block; background: none; border: none; padding: 0 0 12px;
-  font-family: var(--font-body); font-size: .85rem;
-  color: rgba(250,248,245,.55); cursor: pointer; text-align: left; text-decoration: none;
-  transition: color var(--transition);
-}
-.footer-link:hover { color: var(--gold); }
-.footer-social { display: flex; gap: 18px; margin-top: 24px; }
-.footer-social a { color: rgba(250,248,245,.45); transition: color var(--transition); }
-.footer-social a:hover { color: var(--gold); }
-.footer-fine {
-  margin-top: 56px; padding-top: 28px;
-  border-top: 1px solid rgba(255,255,255,.08);
-  font-size: .75rem; color: rgba(250,248,245,.32);
-}
-
-/* ---------- RESPONSIVE ---------- */
-@media (max-width: 968px) {
-  .hero { min-height: auto; padding: 100px 24px 60px; }
-  .hero-grid { grid-template-columns: 1fr; gap: 48px; text-align: center; }
-  .hero-content { align-items: center; }
-  .hero-content .lead { margin-left: auto; margin-right: auto; }
-  .hero-actions { justify-content: center; }
-  .trust-row { justify-content: center; }
-  .hero-art { max-width: 400px; margin: 0 auto; }
-  .service-grid { grid-template-columns: 1fr; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
-  .why-grid { grid-template-columns: 1fr; gap: 48px; }
-  .ig-grid { grid-template-columns: repeat(3, 1fr); }
-  .steps-row { grid-template-columns: repeat(2, 1fr); gap: 32px; }
-  .footer-grid { grid-template-columns: 1fr 1fr; gap: 36px; }
-}
-@media (max-width: 560px) {
-  .h1 { max-width: none; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
-  .ig-grid { grid-template-columns: repeat(3, 1fr); }
-  .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-  .steps-row { grid-template-columns: 1fr; gap: 28px; }
-  .review-card { padding: 32px 24px; }
-  .review-card p { font-size: 1.1rem; }
-  .btn-primary, .btn-secondary { width: 100%; }
-  .hero-actions { width: 100%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fade-up { opacity: 1; transform: none; transition: none; }
-  .svc-card:hover { transform: none; }
-  .svc-card:hover .ac-slide.active { transform: none; }
-  .ig-tile:hover img { transform: none; }
-  .btn-primary:hover { transform: none; }
-}
-
-/* ---------- WHATSAPP FAB ---------- */
-.wa-fab {
-  position: fixed;
-  right: 24px;
-  bottom: 92px;            /* clears the bottom nav on mobile */
-  z-index: 90;
-  width: 56px; height: 56px;
-  border-radius: 50%;
-  background: #25D366;
-  border: none;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(37,211,102,.35);
-  transition: transform var(--transition), box-shadow var(--transition);
-}
-.wa-fab:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(37,211,102,.45); }
-.wa-fab svg { width: 26px; height: 26px; }
-
-/* ---------- BOTTOM NAV, restyled to the system ----------
-   Kept (rather than replaced with a burger) because it is proven, tested, and
-   the fastest path to booking on mobile — which is where this traffic lives. */
-.bottom-nav {
-  position: fixed; left: 0; right: 0; bottom: 0;
-  z-index: 95;
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  background: rgba(250,248,245,.97);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid var(--border);
-  min-height: 64px;
-  max-width: none;
-  transform: none;
-}
-.bottom-tab {
-  border: none; background: transparent;
-  min-height: 64px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  font-family: var(--font-body);
-  font-size: .62rem;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color var(--transition);
-}
-.bottom-tab.active { color: var(--text); }
-.nav-dot { width: 3px; height: 3px; border-radius: 50%; background: transparent; }
-.bottom-tab.active .nav-dot { background: var(--gold); }
-
-@media (min-width: 969px) {
-  .wa-fab { bottom: 28px; }
-  .bottom-nav {
-    left: 50%; transform: translateX(-50%);
-    bottom: 24px;
-    max-width: 620px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-    min-height: 58px;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,.07);
-  }
-  .bottom-tab { min-height: 58px; }
-  .lux { padding-bottom: 0; }
-}
-
-/* ===== HOMEPAGE CONFIG SECTIONS (accordion) ===== */
-.config-section {
-  border: 1px solid var(--border, #e0dcd4);
-  border-radius: 6px;
-  margin-bottom: 10px;
-  overflow: hidden;
-}
-.config-section[open] {
-  border-color: var(--gold, #C6A86B);
-}
-.config-section-title {
-  font-size: 14px;
+/* =========================================================================
+   MI CUENTA / CLIENT AUTH
+   ========================================================================= */
+.mi-cuenta-screen .account-header-card { text-align: center; }
+.appt-card { transition: box-shadow .2s; }
+.appt-card.past { opacity: .7; }
+.status-badge {
+  font-size: 9px;
+  letter-spacing: 1.5px;
   font-weight: 600;
-  padding: 12px 14px;
-  cursor: pointer;
-  user-select: none;
-  background: var(--surface, #faf9f6);
-  list-style: none;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  text-transform: uppercase;
 }
-.config-section-title::-webkit-details-marker { display: none; }
-.config-section-title::before {
-  content: '▸ ';
-  display: inline-block;
-  transition: transform .15s;
-}
-.config-section[open] > .config-section-title::before {
-  transform: rotate(90deg);
-}
-.config-section > *:not(summary) {
-  padding: 0 14px 14px;
-}
-
-/* ===== HERO ART — BIGGER, BOLDER ===== */
-/* Override the 50/50 grid to give the image more space */
-.screen.lux .hero-grid {
-  grid-template-columns: 5fr 6fr;
-  gap: 56px;
-}
-.screen.lux .hero-art-frame {
-  aspect-ratio: 4 / 5;
-  border-radius: 16px;
-  box-shadow: 0 32px 80px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.04);
-}
-/* Navigation controls on hero carousel */
-.hero-art-frame .ac-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255,255,255,.85);
-  color: var(--black, #0a0806);
-  font-size: 22px;
-  cursor: pointer;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.12);
-  transition: all .2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.hero-art-frame .ac-prev { left: 12px; }
-.hero-art-frame .ac-next { right: 12px; }
-.hero-art-frame .ac-arrow:hover { background: #fff; transform: translateY(-50%) scale(1.06); }
-.hero-art-frame .ac-dots { bottom: 16px; }
-.hero-art-frame .ac-dot {
-  width: 9px;
-  height: 9px;
-  background: rgba(255,255,255,.5);
-  border: 1px solid rgba(255,255,255,.7);
-}
-.hero-art-frame .ac-dot.active {
-  background: var(--gold, #C6A86B);
-  border-color: var(--gold, #C6A86B);
-}
-.hero-art-frame .ac-counter {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 5;
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: #fff;
-  background: rgba(0,0,0,.45);
-  padding: 5px 12px;
-  border-radius: 20px;
-  backdrop-filter: blur(4px);
-}
-
-/* Empty hero placeholder */
-.hero-art-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-}
-.hero-empty-hint {
-  position: absolute;
-  bottom: 24px;
-  left: 0; right: 0;
-  text-align: center;
-  font-size: 12px;
-  letter-spacing: .5px;
-  color: var(--muted, #999);
-  padding: 0 16px;
-}
-
-/* ===== FEATURED WORK STRIP — full-bleed scrollable ===== */
-.featured-strip-section { padding-top: 24px; padding-bottom: 0; }
-.featured-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  padding: 0 0 16px;
-  scrollbar-width: none;
-}
-.featured-strip::-webkit-scrollbar { display: none; }
-.featured-strip-item {
-  flex: 0 0 auto;
-  width: 200px;
-  height: 240px;
-  overflow: hidden;
-  border-radius: 8px;
-  scroll-snap-align: start;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  background: var(--surface, #faf9f6);
-  transition: transform .25s;
-}
-.featured-strip-item:hover { transform: scale(1.03); }
-.featured-strip-item img, .featured-strip-item video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* ===== GALLERY GRID — bigger tiles ===== */
-.ig-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-}
-.ig-tile {
-  aspect-ratio: 1;
-  position: relative;
-  overflow: hidden;
-  border-radius: 6px;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  background: var(--surface);
-}
-.ig-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform .4s;
-}
-.ig-tile:hover img { transform: scale(1.06); }
-.ig-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,.3);
-  color: #fff;
-  opacity: 0;
-  transition: opacity .3s;
-}
-.ig-tile:hover .ig-overlay { opacity: 1; }
-
-/* Mobile responsive adjustments for new sections */
-@media (max-width: 968px) {
-  .screen.lux .hero-grid { grid-template-columns: 1fr; gap: 40px; }
-  .screen.lux .hero-art { max-width: 420px; margin: 0 auto; }
-  .ig-grid { grid-template-columns: repeat(3, 1fr); }
-  .featured-strip-item { width: 160px; height: 200px; }
-}
-@media (max-width: 560px) {
-  .screen.lux .hero-art { max-width: 100%; }
-  .screen.lux .hero-art-frame { aspect-ratio: 3/4; }
-  .ig-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
-  .featured-strip-item { width: 140px; height: 180px; }
-  .hero-art-frame .ac-arrow { width: 36px; height: 36px; font-size: 18px; }
-  .hero-art-frame .ac-prev { left: 8px; }
-  .hero-art-frame .ac-next { right: 8px; }
-}
-
-/* ==================================================================
-   MOBILE-FIRST UX/UI OVERHAUL
-   ==================================================================
-   Scope: user-facing screens only, max-width: 968px.
-   No functional changes, no admin changes.
-   ================================================================== */
-
-/* ── HERO: image-first on mobile ── */
-@media (max-width: 968px) {
-  .screen.lux .hero {
-    min-height: auto;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .screen.lux .hero-dots { display: none; }
-
-  .screen.lux .hero-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-    text-align: center;
-  }
-  /* Image FIRST on mobile — flip the visual order so the photo
-     is above the fold, before any text. A nail salon sells with
-     its work, not its words. */
-  .screen.lux .hero-art {
-    order: -1;
-    max-width: 100%;
-    margin: 0;
-  }
-  .screen.lux .hero-art-frame {
-    aspect-ratio: 3 / 4;
-    border-radius: 0;
-    box-shadow: none;
-    width: 100%;
-  }
-  .screen.lux .corner { display: none; }
-
-  .screen.lux .hero-content {
-    align-items: center;
-    padding: 32px 20px 36px;
-    gap: 18px;
-  }
-  .screen.lux .hero-content .eyebrow {
-    font-size: 9px;
-    letter-spacing: .3em;
-  }
-  .screen.lux .hero-content .h1 {
-    font-size: clamp(26px, 7vw, 36px);
-    line-height: 1.15;
-    max-width: 20ch;
-    margin: 0 auto;
-  }
-  .screen.lux .hero-content .lead {
-    font-size: 14px;
-    line-height: 1.7;
-    margin: 0 auto;
-    max-width: 36ch;
-    color: var(--text-sec);
-  }
-  .screen.lux .hero-actions {
-    justify-content: center;
-    width: 100%;
-    gap: 10px;
-  }
-  .screen.lux .trust-row {
-    justify-content: center;
-    gap: 6px;
-    margin-top: 4px;
-  }
-  .screen.lux .trust-pill {
-    font-size: 11px;
-    padding: 8px 14px;
-    gap: 6px;
-  }
-}
-
-/* ── HERO on small phones ── */
-@media (max-width: 560px) {
-  .screen.lux .hero-art-frame {
-    aspect-ratio: 9 / 12;
-  }
-  .screen.lux .hero-content {
-    padding: 24px 16px 32px;
-  }
-  .screen.lux .hero-actions {
-    flex-direction: column;
-  }
-  .screen.lux .hero-actions .btn-primary,
-  .screen.lux .hero-actions .btn-secondary {
-    width: 100%;
-    justify-content: center;
-    padding: 16px 20px;
-  }
-  .screen.lux .trust-pill {
-    font-size: 10.5px;
-    padding: 7px 12px;
-  }
-}
-
-/* ── FEATURED WORK STRIP: mobile sizing ── */
-@media (max-width: 968px) {
-  .featured-strip-section {
-    padding-top: 0 !important;
-  }
-  .featured-strip-section .section-head { padding: 24px 0 12px; }
-  .featured-strip {
-    gap: 4px;
-    padding: 0 16px 8px;
-  }
-  .featured-strip-item {
-    width: 44vw;
-    height: 56vw;
-    border-radius: 6px;
-    flex: 0 0 44vw;
-  }
-}
-@media (max-width: 380px) {
-  .featured-strip-item {
-    width: 60vw;
-    height: 75vw;
-    flex: 0 0 60vw;
-  }
-}
-
-/* ── SECTIONS: tighter spacing on mobile ── */
-@media (max-width: 968px) {
-  .screen.lux .section {
-    padding: 56px 16px 0;
-  }
-  .screen.lux .section-inner {
-    padding: 0;
-  }
-  .screen.lux .section-head.center {
-    text-align: center;
-    align-items: center;
-  }
-  .screen.lux .h2 {
-    font-size: clamp(22px, 6vw, 30px);
-    line-height: 1.2;
-  }
-  .screen.lux .lead,
-  .screen.lux .center-lead {
-    font-size: 14px;
-    line-height: 1.7;
-  }
-  .gold-divider {
-    width: 50px !important;
-    margin: 8px 0;
-  }
-}
-
-/* ── STATS: 2×2 on mobile, compact ── */
-@media (max-width: 968px) {
-  .screen.lux .stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 28px 20px;
-    max-width: 320px;
-    margin: 0 auto;
-  }
-  .stat-figure { font-size: 1.8rem; }
-  .stat-label { font-size: .62rem; margin-top: 8px; }
-}
-
-/* ── REVIEWS: tighter on mobile ── */
-@media (max-width: 968px) {
-  .review-carousel { margin-top: 40px; }
-  .review-viewport { min-height: 200px; }
-  .review-card {
-    padding: 28px 20px;
-  }
-  .review-card p { font-size: 1rem; }
-  .review-card cite strong { font-size: .78rem; }
-}
-
-/* ── SERVICE CARDS: vertical stack, bigger images ── */
-@media (max-width: 968px) {
-  .screen.lux .service-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-  .screen.lux .svc-card {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-  }
-  .screen.lux .svc-card-media {
-    aspect-ratio: 4 / 3;
-    margin-bottom: 24px;
-  }
-  .screen.lux .svc-card-title {
-    font-size: 1.3rem;
-    margin: 0 20px 8px;
-  }
-  .screen.lux .svc-card-copy {
-    margin: 0 20px 18px;
-    font-size: .84rem;
-  }
-  .screen.lux .svc-card-foot {
-    margin: auto 20px 0;
-    padding-top: 16px;
-  }
-  .screen.lux .svc-card-cta {
-    margin: 18px 20px 0;
-    align-self: stretch;
-    text-align: center;
-  }
-}
-
-/* ── WHY-US section: stacked, tighter ── */
-@media (max-width: 968px) {
-  .why-grid {
-    gap: 36px;
-  }
-  .why-list li {
-    padding: 20px 0;
-    gap: 14px;
-  }
-  .why-list strong { font-size: 1.1rem; }
-  .why-list p { font-size: .84rem; }
-  .section-black .lead.on-dark {
-    font-size: 14px;
-    line-height: 1.7;
-    max-width: none;
-  }
-  .section-black .h2.on-dark {
-    font-size: clamp(22px, 6vw, 28px);
-  }
-}
-
-/* ── GALLERY GRID: 3 columns, tight, rounded ── */
-@media (max-width: 968px) {
-  .screen.lux .ig-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 3px;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-  .ig-tile {
-    border-radius: 0;
-  }
-  /* On touch, tapping opens lightbox — no need for hover overlay */
-  .ig-overlay { display: none; }
-}
-
-/* ── STEPS: 2 columns on tablet, 1 on phone ── */
-@media (max-width: 968px) {
-  .steps-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-top: 36px;
-    text-align: center;
-  }
-  .step-num { font-size: 1.6rem; }
-  .step-name { margin: 10px 0 6px; font-size: .76rem; }
-  .step p { font-size: .82rem; }
-}
-@media (max-width: 480px) {
-  .steps-row {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-
-/* ── TEAM: horizontal scroll strip on mobile ── */
-@media (max-width: 968px) {
-  .team-grid {
-    display: flex;
-    gap: 14px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 16px 12px;
-    scrollbar-width: none;
-  }
-  .team-grid::-webkit-scrollbar { display: none; }
-  .team-card {
-    flex: 0 0 240px;
-    scroll-snap-align: start;
-    margin: 0;
-    text-align: center;
-  }
-  .team-photo {
-    width: 240px;
-    height: 280px;
-    object-fit: cover;
-    border-radius: 4px;
-  }
-  .team-photo-empty {
-    width: 240px;
-    height: 280px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 48px;
-    background: var(--warm-ivory);
-    border-radius: 4px;
-  }
-}
-
-/* ── CONTACT CTA: tighter on mobile ── */
-@media (max-width: 968px) {
-  .screen.lux #contacto .section-inner {
-    padding: 0;
-  }
-  .screen.lux #contacto .h2.on-dark {
-    font-size: clamp(22px, 6vw, 28px);
-  }
-  .screen.lux .contact-detail {
-    margin-top: 32px;
-  }
-  .screen.lux .contact-detail p {
-    font-size: .84rem;
-  }
-  .screen.lux .center-actions {
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-  }
-  .screen.lux .center-actions .btn-primary,
-  .screen.lux .center-actions .btn-secondary {
-    width: 100%;
-    justify-content: center;
-  }
-  .screen.lux .map-embed {
-    margin-left: -16px;
-    margin-right: -16px;
-    border: none;
-    border-radius: 0;
-  }
-  .screen.lux .map-embed iframe { height: 240px; }
-}
-
-/* ── FOOTER: single column on mobile ── */
-@media (max-width: 968px) {
-  .lux-footer {
-    padding: 48px 20px 32px;
-  }
-  .footer-grid {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    text-align: center;
-  }
-  .footer-mark { font-size: 1.2rem; }
-  .footer-note { margin: 12px auto 0; }
-  .footer-social { justify-content: center; margin-top: 20px; }
-  .footer-head { margin-bottom: 12px; }
-  .footer-link { text-align: center; padding: 8px 0; }
-  .footer-fine { margin-top: 36px; text-align: center; }
-}
-
-/* ── BOTTOM NAV: bigger tap targets, cleaner ── */
-@media (max-width: 968px) {
-  .screen.lux + .wa-fab,
-  .screen.lux ~ .wa-fab,
-  .wa-fab {
-    width: 52px;
-    height: 52px;
-    right: 16px;
-    bottom: 76px;
-  }
-  .wa-fab svg { width: 24px; height: 24px; }
-
-  .bottom-nav {
-    min-height: 56px;
-  }
-  .bottom-tab {
-    min-height: 56px;
-    gap: 3px;
-    font-size: .58rem;
-    letter-spacing: .1em;
-    padding: 0;
-  }
-  .nav-dot { width: 4px; height: 4px; }
-}
-
-/* ── BOOKING FLOW: mobile polish ── */
-@media (max-width: 968px) {
-  .booking-step {
-    padding: 16px 14px 0;
-  }
-  .progress {
-    margin: 12px 14px 0;
-    gap: 4px;
-  }
-  .progress span { height: 3px; }
-  .date-row {
-    gap: 6px;
-    padding: 2px 0 10px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .date-row::-webkit-scrollbar { display: none; }
-  .date-chip {
-    flex: 0 0 56px;
-    height: 54px;
-  }
-  .time-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
-  }
-  .time-btn {
-    min-height: 48px;
-    font-size: 14px;
-  }
-  .time-btn small { font-size: 8px; }
-  .fomo {
-    font-size: 10px;
-  }
-  /* Preference card */
-  .preference-card {
-    margin: 4px 0 12px;
-    padding: 14px;
-  }
-  .compact-head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .compact-head .pill-button { align-self: flex-start; }
-
-  .form-grid.two-col {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-  .form-field label { font-size: 9px; }
-  .form-field input,
-  .form-field textarea,
-  .form-field select {
-    padding: 12px 10px;
-    font-size: 15px;
-  }
-  .info-grid { gap: 8px; }
-  .info-line { font-size: 13px; }
-}
-
-/* ── SERVICES LIST PAGE: full-width cards ── */
-@media (max-width: 968px) {
-  .section-tight {
-    padding: 12px 0 0;
-  }
-  .svc-card-redesign {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    grid-template-columns: 110px 1fr;
-  }
-  .svc-card-img { min-height: 140px; }
-  .svc-card-body { padding: 12px 14px; }
-  .svc-card-name { font-size: 15px; }
-  .svc-card-price { font-size: 18px; }
-  .svc-card-cta { min-height: 38px; }
-  .page-header {
-    padding: 20px 16px 4px;
-  }
-  .page-header .title { font-size: 24px; }
-  .page-header .subtitle { font-size: 13px; }
-  .category-title { margin: 20px 16px 10px; font-size: 10px; }
-}
-
-/* ── GALLERY PAGE: masonry 2-col with tight gap ── */
-@media (max-width: 968px) {
-  .masonry-grid {
-    column-count: 2;
-    column-gap: 4px;
-    padding: 8px 8px 0;
-  }
-  .masonry-item {
-    margin-bottom: 4px;
-    border-radius: 4px;
-  }
-  .masonry-item img { border-radius: 4px; }
-  .masonry-category-chip { top: 6px; left: 6px; font-size: 8px; padding: 2px 6px; }
-  .pill-row {
-    padding: 0 8px 8px !important;
-    gap: 6px;
-  }
-  .pill-row .pill-button {
-    font-size: 10px;
-    padding: 0 10px;
-    min-height: 30px;
-  }
-}
-
-/* ── ACADEMIA PAGE ── */
-@media (max-width: 968px) {
-  .service-detail {
-    padding: 14px;
-  }
-  .carousel-frame img {
-    width: 100%;
-    border-radius: 4px;
-  }
-  .carousel-arrow { width: 32px; height: 32px; font-size: 18px; }
-}
-
-/* ── LIGHTBOX: full-screen on mobile ── */
-@media (max-width: 968px) {
-  .lightbox-overlay { background: rgba(0,0,0,.97); }
-  .lightbox-media {
-    max-width: 100vw;
-    max-height: 80vh;
-    padding: 0 8px;
-  }
-  .lightbox-media img,
-  .lightbox-media video {
-    max-width: 100%;
-    max-height: 80vh;
-    border-radius: 4px;
-  }
-  .lightbox-close {
-    top: 10px; right: 10px;
-    width: 36px; height: 36px;
-    font-size: 14px;
-  }
-  .lightbox-arrow {
-    width: 38px; height: 38px;
-    font-size: 20px;
-    background: rgba(255,255,255,.12);
-  }
-  .lightbox-arrow.left { left: 8px; }
-  .lightbox-arrow.right { right: 8px; }
-  .lightbox-caption {
-    padding: 12px 16px;
-    font-size: 13px;
-  }
-}
-
-/* ── BRAND HEADER (inner pages): tighter ── */
-@media (max-width: 968px) {
-  .brand-header {
-    padding: 20px 16px 14px;
-    gap: 6px;
-  }
-  .logo { font-size: 26px; letter-spacing: 4px; }
-  .tagline { font-size: 9px; letter-spacing: 3px; }
-  .gold-rule { width: 28px; }
-}
-
-/* ── PROMO BANNER: full-width on mobile ── */
-@media (max-width: 968px) {
-  .promo-card {
-    border-left: none;
-    border-right: none;
-    border-radius: 0;
-    padding: 20px 16px;
-    text-align: center;
-  }
-  .promo-card .title { font-size: 18px !important; }
-  .promo-card .subtitle { font-size: 13px; }
-}
-
-/* ── HERO CAROUSEL ARROWS: mobile sizing ── */
-@media (max-width: 968px) {
-  .hero-art-frame .ac-arrow {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-    background: rgba(255,255,255,.7);
-  }
-  .hero-art-frame .ac-prev { left: 10px; }
-  .hero-art-frame .ac-next { right: 10px; }
-  .hero-art-frame .ac-counter {
-    top: 12px; right: 12px;
-    font-size: 10px;
-    padding: 4px 10px;
-  }
-  .hero-art-frame .ac-dots { bottom: 12px; }
-  .hero-art-frame .ac-dot { width: 7px; height: 7px; }
-}
-
-/* ── SAFE AREA (bottom) for phones with gesture bars ── */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .bottom-nav {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .screen.lux, .screen {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
-  }
-}
-/* ===== FIX DESKTOP NAV ===== */
-
-@media (min-width: 900px) {
-
-    .bottom-nav{
-        position:fixed !important;
-        top:auto !important;
-        bottom:24px !important;
-        left:50% !important;
-        right:auto !important;
-        transform:translateX(-50%) !important;
-
-        width:100%;
-        max-width:620px;
-
-        min-height:60px !important;
-        height:60px !important;
-
-        border-radius:100px !important;
-        overflow:hidden;
-        box-shadow:0 16px 40px rgba(0,0,0,.12);
-    }
-
-}
+.status-new { background: #fff3e0; color: #e65100; }
+.status-confirmed { background: #e8f5e9; color: #2e7d32; }
+.status-in_progress { background: #e3f2fd; color: #1565c0; }
+.status-completed { background: var(--gold-glow); color: var(--gold-text); }
+.status-cancelled { background: #fce4ec; color: #c62828; }

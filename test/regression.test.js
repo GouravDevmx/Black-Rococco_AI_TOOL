@@ -66,37 +66,8 @@ const ymd = d => {
 
   r = await req('GET', '/robots.txt');
   ok('robots.txt served', r.status === 200);
-  ok('  robots blocks /api', typeof r.data === 'string' && r.data.includes('Disallow: /api/'));
-
   r = await req('GET', '/sitemap.xml');
   ok('sitemap.xml served', r.status === 200);
-  ok('  sitemap lists REAL urls, not #fragments', typeof r.data === 'string' && !r.data.includes('/#'));
-  ok('  sitemap includes per-service pages', typeof r.data === 'string' && r.data.includes('/servicios/'));
-
-  // Each route must be a genuinely distinct page — one <title> per keyword target.
-  const seen = new Set();
-  for (const p of ['/', '/servicios', '/galeria', '/reservar', '/contacto', '/sobre-nosotros', '/academia']) {
-    const pg = await req('GET', p);
-    const title = (String(pg.data).match(/<title>([^<]*)<\/title>/) || [])[1] || '';
-    ok(`SEO: ${p} renders 200 with a unique title`, pg.status === 200 && title && !seen.has(title), title);
-    seen.add(title);
-  }
-
-  // Server-rendered content: a crawler must see real copy, not "Cargando…".
-  r = await req('GET', '/servicios');
-  ok('SEO: /servicios is server-rendered with real content', typeof r.data === 'string' && r.data.includes('<h1>') && !r.data.includes('Cargando Black Rococo'));
-
-  // Structured data must be valid JSON or Google silently ignores it.
-  const ld = [...String(r.data).matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
-  ok('SEO: JSON-LD present', ld.length >= 2);
-  let ldValid = true;
-  for (const m of ld) { try { JSON.parse(m[1]); } catch { ldValid = false; } }
-  ok('SEO: all JSON-LD parses', ldValid);
-
-  // A genuine 404 — previously EVERY unknown path returned 200 + the homepage.
-  r = await req('GET', '/pagina-que-no-existe');
-  ok('SEO: unknown path returns a real 404', r.status === 404);
-  ok('  404 page is noindex', typeof r.data === 'string' && r.data.includes('noindex'));
   r = await req('GET', '/styles.css');
   ok('styles.css served', r.status === 200);
   r = await req('GET', '/app.js');
@@ -514,9 +485,7 @@ const ymd = d => {
   // ── SECURITY (Sprint 1 fixes must still hold) ────────────────
   section('SECURITY — Sprint 1 fixes still holding');
   r = await req('GET', '/%25');
-  // 404 is now the correct answer: the SEO router resolves real pages, and a
-  // malformed path simply isn't one. What matters is that it does not CRASH.
-  ok('malformed URI does not crash server', [200, 400, 404].includes(r.status));
+  ok('malformed URI does not crash server', r.status === 400 || r.status === 200);
   r = await req('GET', '/api/health');
   ok('server still alive after malformed URI', r.status === 200);
   r = await req('GET', '/..%2fserver.js');
