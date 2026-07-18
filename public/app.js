@@ -116,7 +116,10 @@ const state = {
   blogAdmin: {
     editingId: null,
     coverImageDraft: '',
-    coverUploading: false
+    coverUploading: false,
+    // Block-based content: [{type:'text',content:''}, {type:'image',url:'',caption:''}]
+    blocks: [],
+    blockUploading: null // index of block currently uploading
   }
 };
 
@@ -146,6 +149,14 @@ const api = (url, options = {}) => fetch(url, {
 function setHashMode() {
   const hash = location.hash.replace('#', '');
   if (hash === 'admin') state.mode = 'admin';
+  // Blog detail: #blog/slug-here
+  if (hash.startsWith('blog/')) {
+    state.mode = 'client';
+    state.tab = 'blog';
+    const slug = hash.slice(5);
+    if (slug) loadBlogDetail(slug);
+    return;
+  }
   if (['inicio', 'servicios', 'reservar', 'galeria', 'academia', 'blog', 'mi-cuenta'].includes(hash)) {
     state.mode = 'client';
     state.tab = hash;
@@ -662,6 +673,9 @@ async function loadBlogDetail(id) {
   try {
     const data = await api(`/api/blogs/${encodeURIComponent(id)}`);
     state.blogDetail = data.post;
+    state.tab = 'blog';
+    state.mode = 'client';
+    history.replaceState(null, '', `#blog/${data.post.slug}`);
   } catch (err) {
     state.blogDetail = null;
   }
@@ -670,10 +684,20 @@ async function loadBlogDetail(id) {
 
 async function createOrUpdateBlog(form) {
   const fd = new FormData(form);
+  // Serialize blocks to HTML body
+  const blocks = state.blogAdmin.blocks || [];
+  const bodyHtml = blocks.map(b => {
+    if (b.type === 'text') return b.content || '';
+    if (b.type === 'image' && b.url) {
+      return `<figure class="blog-inline-figure"><img src="${b.url}" alt="${(b.caption || '').replace(/"/g, '&quot;')}" loading="lazy">${b.caption ? `<figcaption>${b.caption}</figcaption>` : ''}</figure>`;
+    }
+    return '';
+  }).join('\n');
+
   const body = {
     title: fd.get('title') || '',
     excerpt: fd.get('excerpt') || '',
-    body: fd.get('body') || '',
+    body: bodyHtml,
     coverImageUrl: state.blogAdmin.coverImageDraft || fd.get('coverImageUrl') || '',
     published: fd.get('published') === 'on',
     tags: (fd.get('tags') || '').split(',').map(t => t.trim()).filter(Boolean),
@@ -688,11 +712,31 @@ async function createOrUpdateBlog(form) {
     }
     state.blogAdmin.editingId = null;
     state.blogAdmin.coverImageDraft = '';
+    state.blogAdmin.blocks = [];
     await loadAdminDashboard();
   } catch (err) {
     state.admin.error = err.message;
   }
   render();
+}
+
+// Parse existing HTML body back into blocks for editing
+function htmlToBlocks(html) {
+  if (!html) return [{ type: 'text', content: '' }];
+  const blocks = [];
+  // Split on figure tags
+  const parts = String(html).split(/(<figure[\s\S]*?<\/figure>)/gi);
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const figMatch = trimmed.match(/<figure[^>]*>[\s\S]*?<img[^>]+src="([^"]*)"[^>]*(?:alt="([^"]*)")?[\s\S]*?(?:<figcaption>([\s\S]*?)<\/figcaption>)?[\s\S]*?<\/figure>/i);
+    if (figMatch) {
+      blocks.push({ type: 'image', url: figMatch[1] || '', caption: figMatch[3] || figMatch[2] || '' });
+    } else {
+      blocks.push({ type: 'text', content: trimmed });
+    }
+  }
+  return blocks.length ? blocks : [{ type: 'text', content: '' }];
 }
 
 async function deleteBlog(id) {
@@ -1678,7 +1722,7 @@ function homeScreen() {
       <div class="card-list">
         ${(state.blogPosts || []).slice(0, 2).map(p => {
           const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
-          return `<div class="card blog-card" data-blog-open="${esc(p.id)}" style="cursor:pointer">
+          return `<div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}" style="cursor:pointer">
             <div class="eyebrow">${esc(dateStr)}</div>
             <div class="title" style="font-size:16px;margin:4px 0">${esc(p.title)}</div>
             ${p.excerpt ? `<div class="subtitle" style="font-size:13px">${esc(p.excerpt).slice(0, 80)}${p.excerpt.length > 80 ? '…' : ''}</div>` : ''}
@@ -2012,7 +2056,7 @@ function blogScreen() {
     <div class="blog-list">
       ${posts.map(p => {
         const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
-        return `<div class="section"><div class="card blog-card" data-blog-open="${esc(p.id)}">
+        return `<div class="section"><div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}">
           ${p.coverImageUrl ? `<div class="blog-card-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy"></div>` : ''}
           <div class="blog-card-body">
             <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
@@ -2202,6 +2246,7 @@ function adminBlog(data) {
   const editing = state.blogAdmin.editingId;
   const editPost = editing && editing !== '__new__' ? blogs.find(b => b.id === editing) : null;
   const isNew = editing === '__new__';
+  const blocks = state.blogAdmin.blocks || [];
 
   if (editing) {
     return `<div class="section">
@@ -2211,14 +2256,45 @@ function adminBlog(data) {
       </div>
       <form data-blog-form class="card">
         <div class="form-field"><label>Título</label><input name="title" value="${esc(editPost?.title || '')}" placeholder="Título del artículo" required></div>
-        <div class="form-field"><label>Extracto / Resumen</label><textarea name="excerpt" rows="2" placeholder="Breve descripción...">${esc(editPost?.excerpt || '')}</textarea></div>
-        <div class="form-field"><label>Contenido (HTML)</label><textarea name="body" rows="12" placeholder="Escribe el contenido del artículo...">${esc(editPost?.body || '')}</textarea></div>
+        <div class="form-field"><label>Extracto / Resumen</label><textarea name="excerpt" rows="2" placeholder="Breve descripción para listado...">${esc(editPost?.excerpt || '')}</textarea></div>
+
         <div class="form-field"><label>Imagen de portada</label>
           ${state.blogAdmin.coverImageDraft || editPost?.coverImageUrl ? `<div class="admin-thumb-row"><img src="${esc(state.blogAdmin.coverImageDraft || editPost?.coverImageUrl || '')}" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px"><button type="button" class="pill-button" data-remove-blog-cover>QUITAR</button></div>` : ''}
           <input type="file" accept="image/*" data-blog-cover-input>
           <input type="hidden" name="coverImageUrl" value="${esc(state.blogAdmin.coverImageDraft || editPost?.coverImageUrl || '')}">
           ${state.blogAdmin.coverUploading ? '<div class="subtitle">Subiendo imagen...</div>' : ''}
         </div>
+
+        <div class="form-field"><label>CONTENIDO DEL ARTÍCULO</label>
+          <div class="subtitle" style="margin:-4px 0 8px;font-size:11px">Agrega bloques de texto e imágenes. Las imágenes aparecerán exactamente donde las coloques.</div>
+        </div>
+
+        <div class="blog-blocks-editor">
+          ${blocks.map((block, i) => {
+            if (block.type === 'text') {
+              return `<div class="blog-block blog-block-text" data-block-index="${i}">
+                <div class="blog-block-head"><span class="eyebrow">TEXTO</span><div class="pill-row"><button type="button" class="pill-button" data-blog-block-move-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="pill-button" data-blog-block-move-down="${i}" ${i === blocks.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="pill-button" data-blog-block-remove="${i}">✕</button></div></div>
+                <textarea rows="6" data-blog-block-text="${i}" placeholder="Escribe el contenido... Puedes usar HTML: <p>, <h2>, <h3>, <ul>, <strong>, <em>">${esc(block.content)}</textarea>
+              </div>`;
+            }
+            if (block.type === 'image') {
+              return `<div class="blog-block blog-block-image" data-block-index="${i}">
+                <div class="blog-block-head"><span class="eyebrow">IMAGEN</span><div class="pill-row"><button type="button" class="pill-button" data-blog-block-move-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="pill-button" data-blog-block-move-down="${i}" ${i === blocks.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="pill-button" data-blog-block-remove="${i}">✕</button></div></div>
+                ${block.url ? `<img src="${esc(block.url)}" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;margin-bottom:8px">` : ''}
+                ${state.blogAdmin.blockUploading === i ? '<div class="subtitle">Subiendo imagen...</div>' : ''}
+                ${!block.url ? `<input type="file" accept="image/*" data-blog-block-image-input="${i}">` : ''}
+                <input placeholder="Pie de foto (opcional)" value="${esc(block.caption || '')}" data-blog-block-caption="${i}" style="margin-top:6px">
+              </div>`;
+            }
+            return '';
+          }).join('')}
+        </div>
+
+        <div class="pill-row" style="margin:12px 0 16px;justify-content:center">
+          <button type="button" class="pill-button" data-blog-add-block="text">+ TEXTO</button>
+          <button type="button" class="pill-button" data-blog-add-block="image">+ IMAGEN</button>
+        </div>
+
         <div class="form-field"><label>Etiquetas (separadas por coma)</label><input name="tags" value="${esc((editPost?.tags || []).join(', '))}" placeholder="tendencias, manicure, tips"></div>
         <div class="form-field"><label>Autor</label><input name="author" value="${esc(editPost?.author || 'Black Rococo')}" placeholder="Black Rococo"></div>
         <div class="form-field" style="flex-direction:row;align-items:center;gap:8px">
@@ -3372,7 +3448,7 @@ app.addEventListener('click', async event => {
   if (event.target.matches('[data-close-lightbox]')) {
     return closeLightbox();
   }
-  const target = event.target.closest('button, a, label, [data-view-service], [data-open-lightbox]');
+  const target = event.target.closest('button, a, label, [data-view-service], [data-open-lightbox], [data-blog-open]');
   if (!target) return;
 
   if (target.dataset.viewService) {
@@ -3472,6 +3548,7 @@ app.addEventListener('click', async event => {
   }
   if (target.hasAttribute('data-blog-back')) {
     state.blogDetail = null;
+    history.replaceState(null, '', '#blog');
     return render();
   }
 
@@ -3479,23 +3556,47 @@ app.addEventListener('click', async event => {
   if (target.hasAttribute('data-new-blog')) {
     state.blogAdmin.editingId = '__new__';
     state.blogAdmin.coverImageDraft = '';
+    state.blogAdmin.blocks = [{ type: 'text', content: '' }];
     return render();
   }
   if (target.dataset.editBlog) {
     state.blogAdmin.editingId = target.dataset.editBlog;
     const post = (state.admin.data?.blogPosts || []).find(b => b.id === target.dataset.editBlog);
     state.blogAdmin.coverImageDraft = post?.coverImageUrl || '';
+    state.blogAdmin.blocks = htmlToBlocks(post?.body || '');
     return render();
   }
   if (target.hasAttribute('data-cancel-blog-edit')) {
     state.blogAdmin.editingId = null;
     state.blogAdmin.coverImageDraft = '';
+    state.blogAdmin.blocks = [];
     return render();
   }
   if (target.dataset.deleteBlog) return deleteBlog(target.dataset.deleteBlog);
   if (target.dataset.toggleBlogPublish) return toggleBlogPublish(target.dataset.toggleBlogPublish, target.dataset.published === '1');
   if (target.hasAttribute('data-remove-blog-cover')) {
     state.blogAdmin.coverImageDraft = '';
+    return render();
+  }
+  // Blog block editor controls
+  if (target.dataset.blogAddBlock) {
+    const type = target.dataset.blogAddBlock;
+    state.blogAdmin.blocks.push(type === 'image' ? { type: 'image', url: '', caption: '' } : { type: 'text', content: '' });
+    return render();
+  }
+  if (target.dataset.blogBlockRemove !== undefined) {
+    state.blogAdmin.blocks.splice(Number(target.dataset.blogBlockRemove), 1);
+    if (!state.blogAdmin.blocks.length) state.blogAdmin.blocks.push({ type: 'text', content: '' });
+    return render();
+  }
+  if (target.dataset.blogBlockMoveUp !== undefined) {
+    const i = Number(target.dataset.blogBlockMoveUp);
+    if (i > 0) { const tmp = state.blogAdmin.blocks[i]; state.blogAdmin.blocks[i] = state.blogAdmin.blocks[i-1]; state.blogAdmin.blocks[i-1] = tmp; }
+    return render();
+  }
+  if (target.dataset.blogBlockMoveDown !== undefined) {
+    const i = Number(target.dataset.blogBlockMoveDown);
+    if (i < state.blogAdmin.blocks.length - 1) { const tmp = state.blogAdmin.blocks[i]; state.blogAdmin.blocks[i] = state.blogAdmin.blocks[i+1]; state.blogAdmin.blocks[i+1] = tmp; }
     return render();
   }
 
@@ -3702,6 +3803,15 @@ app.addEventListener('input', event => {
   if (el.dataset.aboutField && state.admin.aboutUsDraft) state.admin.aboutUsDraft[el.dataset.aboutField] = el.value;
   if (el.dataset.academiaField) state.academia[el.dataset.academiaField] = el.value;
   if (el.dataset.clientAuthField) state.clientAuth[el.dataset.clientAuthField] = el.value;
+  // Blog block editor text inputs
+  if (el.dataset.blogBlockText !== undefined) {
+    const i = Number(el.dataset.blogBlockText);
+    if (state.blogAdmin.blocks[i]) state.blogAdmin.blocks[i].content = el.value;
+  }
+  if (el.dataset.blogBlockCaption !== undefined) {
+    const i = Number(el.dataset.blogBlockCaption);
+    if (state.blogAdmin.blocks[i]) state.blogAdmin.blocks[i].caption = el.value;
+  }
   if (el.hasAttribute('data-rebook-whatsapp')) state.booking.rebook.whatsapp = el.value;
   if (el.hasAttribute('data-admin-clients-search')) {
     state.admin.clientSearch = el.value;
@@ -3763,6 +3873,25 @@ app.addEventListener('change', async event => {
       state.admin.error = `No se pudo subir la imagen: ${err.message}`;
     }
     state.blogAdmin.coverUploading = false;
+    el.value = '';
+    return render();
+  }
+  if (el.dataset.blogBlockImageInput !== undefined) {
+    const idx = Number(el.dataset.blogBlockImageInput);
+    const file = el.files?.[0];
+    if (!file) return;
+    const invalid = validateMediaFile(file);
+    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    state.admin.error = '';
+    state.blogAdmin.blockUploading = idx;
+    render();
+    try {
+      const url = await uploadAdminImage(file);
+      if (state.blogAdmin.blocks[idx]) state.blogAdmin.blocks[idx].url = url;
+    } catch (err) {
+      state.admin.error = `No se pudo subir la imagen: ${err.message}`;
+    }
+    state.blogAdmin.blockUploading = null;
     el.value = '';
     return render();
   }
