@@ -99,13 +99,16 @@ const state = {
     displayName: '',
     whatsapp: '',
     clientId: null,
-    showForm: '', // 'login' | 'register' | ''
+    showForm: '', // 'login' | 'register' | 'verify' | ''
     loginWhatsapp: '',
     loginPassword: '',
     regName: '',
     regWhatsapp: '',
     regEmail: '',
     regPassword: '',
+    otpCode: '',
+    otpSent: '',       // the code we generated
+    otpExpiry: 0,      // timestamp
     error: '',
     loading: false,
     appointments: [],
@@ -598,6 +601,47 @@ async function checkClientSession() {
   }
 }
 
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sendOtpViaWhatsApp() {
+  const ca = state.clientAuth;
+  if (!ca.regName || ca.regName.trim().length < 2) { ca.error = 'Escribe tu nombre.'; render(); return; }
+  const wp = ca.regWhatsapp.replace(/\D/g, '');
+  if (wp.length < 8) { ca.error = 'WhatsApp inválido.'; render(); return; }
+  if ((ca.regPassword || '').length < 6) { ca.error = 'La contraseña debe tener al menos 6 caracteres.'; render(); return; }
+  ca.error = '';
+  const code = generateOtp();
+  ca.otpSent = code;
+  ca.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 min
+  ca.showForm = 'verify';
+  // Open WhatsApp with the verification code pre-filled for the user to send to themselves
+  const fullNum = wp.startsWith('52') ? wp : '52' + wp;
+  const msg = encodeURIComponent(`Mi código de verificación Black Rococo es: ${code}`);
+  window.open(`https://api.whatsapp.com/send/?phone=${fullNum}&text=${msg}`, '_blank');
+  render();
+}
+
+function verifyOtpAndRegister() {
+  const ca = state.clientAuth;
+  if (!ca.otpCode || ca.otpCode.trim() !== ca.otpSent) {
+    ca.error = 'El código no coincide. Revisa tu WhatsApp.';
+    render();
+    return;
+  }
+  if (Date.now() > ca.otpExpiry) {
+    ca.error = 'El código expiró. Vuelve a intentar.';
+    ca.showForm = 'register';
+    ca.otpSent = '';
+    ca.otpCode = '';
+    render();
+    return;
+  }
+  // Code matches — proceed with registration
+  clientRegister();
+}
+
 async function clientRegister() {
   const ca = state.clientAuth;
   ca.error = '';
@@ -613,9 +657,11 @@ async function clientRegister() {
     ca.whatsapp = data.whatsapp;
     ca.showForm = '';
     ca.regName = ''; ca.regWhatsapp = ''; ca.regEmail = ''; ca.regPassword = '';
+    ca.otpSent = ''; ca.otpCode = '';
     await checkClientSession();
   } catch (err) {
     ca.error = err.message;
+    ca.showForm = 'register';
   }
   ca.loading = false;
   render();
@@ -737,6 +783,24 @@ function htmlToBlocks(html) {
     }
   }
   return blocks.length ? blocks : [{ type: 'text', content: '' }];
+}
+
+// Format blog body HTML for reader view: if the body contains no block-level
+// HTML tags, treat each double-newline as a paragraph break. This ensures
+// content typed as plain text in the block editor renders with proper spacing.
+function formatBlogBody(raw) {
+  if (!raw || !raw.trim()) return '<p><em>Sin contenido.</em></p>';
+  const s = raw.trim();
+  // If already has block-level tags, render as-is (it's proper HTML)
+  if (/<(?:p|h[1-6]|div|ul|ol|li|blockquote|figure|table|section|article)\b/i.test(s)) return s;
+  // Plain text — split on double newlines into paragraphs, preserve single
+  // newlines as <br>. This mirrors the Manucurist-style flowing paragraph layout.
+  return s
+    .split(/\n\s*\n/)
+    .map(block => block.trim())
+    .filter(Boolean)
+    .map(block => `<p>${block.replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
 }
 
 async function deleteBlog(id) {
@@ -1413,12 +1477,14 @@ async function updateCourseRegistrationStatus(id, status) {
 
 function brandHeader() {
   const [one, two] = splitBrand(state.config.brand.name);
+  const ca = state.clientAuth;
+  const isHome = state.tab === 'inicio';
   return `<header class="brand-header">
-    <div class="gold-rule"></div>
-    <div class="logo">${esc(one)}<br>${esc(two)}</div>
-    <div class="tagline">${esc(state.config.brand.tagline)}</div>
-    <div class="gold-rule"></div>
-    <div class="social-proof"><strong>★ ${esc(state.config.brand.rating)}</strong> · ${esc(state.config.brand.socialProof)}</div>
+    <div class="brand-topbar">
+      <div class="topbar-left">${!isHome ? `<button class="topbar-icon" data-tab="inicio" aria-label="Inicio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>` : '<span></span>'}</div>
+      <div class="topbar-center"><button class="topbar-brand" data-tab="inicio">${esc(one)} ${esc(two)}</button></div>
+      <div class="topbar-right"><button class="topbar-icon ${ca.loggedIn ? 'topbar-icon-active' : ''}" data-tab="mi-cuenta" aria-label="${ca.loggedIn ? 'Mi cuenta' : 'Acceder'}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>${ca.loggedIn ? '<span class="topbar-dot"></span>' : ''}</button></div>
+    </div>
   </header>`;
 }
 
@@ -1637,6 +1703,11 @@ function homeScreen() {
 
   return `<section class="screen">
     ${brandHeader()}
+    <div class="hero-intro">
+      <div class="gold-rule"></div>
+      <div class="tagline">${esc(c.brand.tagline)}</div>
+      <div class="social-proof"><strong>★ ${esc(c.brand.rating)}</strong> · ${esc(c.brand.socialProof)}</div>
+    </div>
 
     <!-- 1. HERO -->
     <div class="hero ${heroImages.length ? 'hero-has-image' : ''}">
@@ -1844,6 +1915,10 @@ function bookingStepConfirm() {
   const svc = serviceById(b.serviceId);
   const discount = svc ? discountedPriceFor(svc) : null;
   const cfg = state.salonConfig || {};
+  const ca = state.clientAuth;
+  // Auto-fill from logged-in account if fields are empty
+  if (ca.loggedIn && !b.name && ca.displayName) b.name = ca.displayName;
+  if (ca.loggedIn && !b.whatsapp && ca.whatsapp) b.whatsapp = ca.whatsapp;
   const dl = (id, list) => list?.length ? `<datalist id="${id}">${list.map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '';
   return `<div class="booking-step">
     <div class="section-head"><div><div class="title">3. Confirmar</div><div class="subtitle">Revisa tus datos antes de apartar tu lugar.</div></div><button class="pill-button" data-step="2">CAMBIAR</button></div>
@@ -2021,15 +2096,12 @@ function academiaSuccessScreen() {
 // BLOG SCREEN — public, no login required
 // =========================================================================
 function blogScreen() {
-  const [one, two] = splitBrand(state.config?.brand?.name || 'BLACK ROCOCO');
-
   // Detail view
   if (state.blogDetail) {
     const p = state.blogDetail;
     const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
-    return `<section class="client-screen blog-screen">
-      <div class="gold-rule"></div>
-      <div class="logo">${esc(one)}<br>${esc(two)}</div>
+    return `<section class="screen blog-screen">
+      ${brandHeader()}
       <div class="section">
         <button class="pill-button" data-blog-back>← VOLVER AL BLOG</button>
       </div>
@@ -2037,10 +2109,10 @@ function blogScreen() {
       <div class="section">
         <div class="blog-detail-header">
           <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
-          <h1 class="title" style="font-size:26px;margin:8px 0 12px">${esc(p.title)}</h1>
+          <h1 class="title" style="font-size:24px;margin:8px 0 10px">${esc(p.title)}</h1>
           ${p.tags.length ? `<div class="blog-tags">${p.tags.map(t => `<span class="blog-tag">${esc(t)}</span>`).join('')}</div>` : ''}
         </div>
-        <div class="blog-body">${p.body}</div>
+        <div class="blog-body">${formatBlogBody(p.body)}</div>
       </div>
       ${bottomNav()}
     </section>`;
@@ -2048,11 +2120,10 @@ function blogScreen() {
 
   // Listing view
   const posts = state.blogPosts || [];
-  return `<section class="client-screen blog-screen">
-    <div class="gold-rule"></div>
-    <div class="logo">${esc(one)}<br>${esc(two)}</div>
-    <div class="tagline">BLOG</div>
-    ${posts.length === 0 ? `<div class="section"><div class="card" style="text-align:center"><div class="subtitle">Próximamente — artículos de cuidado, tendencias y más.</div></div></div>` : ''}
+  return `<section class="screen blog-screen">
+    ${brandHeader()}
+    <div class="page-header"><div class="title">Blog</div><div class="subtitle">Artículos de cuidado, tendencias y más.</div></div>
+    ${posts.length === 0 ? `<div class="section"><div class="card" style="text-align:center"><div class="subtitle">Próximamente.</div></div></div>` : ''}
     <div class="blog-list">
       ${posts.map(p => {
         const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -2075,7 +2146,6 @@ function blogScreen() {
 // MI CUENTA SCREEN — login/register/account with guest option
 // =========================================================================
 function miCuentaScreen() {
-  const [one, two] = splitBrand(state.config?.brand?.name || 'BLACK ROCOCO');
   const ca = state.clientAuth;
 
   if (ca.loggedIn) {
@@ -2086,9 +2156,8 @@ function miCuentaScreen() {
     const upcoming = ca.appointments.filter(a => a.date >= today && a.status !== 'cancelled');
     const past = ca.appointments.filter(a => a.date < today || a.status === 'cancelled');
 
-    return `<section class="client-screen mi-cuenta-screen">
-      <div class="gold-rule"></div>
-      <div class="logo">${esc(one)}<br>${esc(two)}</div>
+    return `<section class="screen mi-cuenta-screen">
+      ${brandHeader()}
       <div class="section">
         <div class="card account-header-card">
           <div class="title" style="font-size:22px">Hola, ${esc(ca.displayName)}</div>
@@ -2134,10 +2203,9 @@ function miCuentaScreen() {
 
   // Not logged in — show options
   const form = ca.showForm;
-  return `<section class="client-screen mi-cuenta-screen">
-    <div class="gold-rule"></div>
-    <div class="logo">${esc(one)}<br>${esc(two)}</div>
-    <div class="tagline">TU CUENTA</div>
+  return `<section class="screen mi-cuenta-screen">
+    ${brandHeader()}
+    <div class="page-header"><div class="title">Tu Cuenta</div></div>
 
     ${form === '' ? `<div class="section">
       <div class="card" style="text-align:center">
@@ -2175,12 +2243,29 @@ function miCuentaScreen() {
         <div class="form-field"><label>WhatsApp</label><input data-client-auth-field="regWhatsapp" value="${esc(ca.regWhatsapp)}" inputmode="tel" placeholder="33 0000 0000"></div>
         <div class="form-field"><label>Email (opcional)</label><input type="email" data-client-auth-field="regEmail" value="${esc(ca.regEmail)}" placeholder="tu@email.com"></div>
         <div class="form-field"><label>Contraseña (mín. 6 caracteres)</label><input type="password" data-client-auth-field="regPassword" value="${esc(ca.regPassword)}" placeholder="Tu contraseña"></div>
-        <button class="btn btn-primary" data-client-register ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'CREANDO...' : 'CREAR CUENTA'}</button>
+        <div class="subtitle" style="font-size:11px;margin:4px 0 12px;color:var(--muted)">Te enviaremos un código de verificación por WhatsApp para confirmar tu número.</div>
+        <button class="btn btn-primary" data-client-send-otp>VERIFICAR MI WHATSAPP</button>
         <div style="margin-top:14px;text-align:center">
           <button class="pill-button" data-show-client-form="login">¿Ya tienes cuenta? Inicia sesión</button>
         </div>
         <div style="margin-top:8px;text-align:center">
           <button class="pill-button" data-show-client-form="">← Volver</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${form === 'verify' ? `<div class="section">
+      <div class="card">
+        <div class="title" style="font-size:20px;margin-bottom:10px">Verificar WhatsApp</div>
+        <div class="subtitle" style="margin-bottom:14px">Acabamos de abrir WhatsApp con tu código. Envía el mensaje y luego escribe el código de 6 dígitos aquí:</div>
+        ${ca.error ? `<div class="error-box">${esc(ca.error)}</div>` : ''}
+        <div class="form-field"><label>Código de verificación</label><input data-client-auth-field="otpCode" value="${esc(ca.otpCode)}" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;font-size:24px;letter-spacing:8px"></div>
+        <button class="btn btn-primary" data-client-verify-otp ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'VERIFICANDO...' : 'VERIFICAR Y CREAR CUENTA'}</button>
+        <div style="margin-top:14px;text-align:center">
+          <button class="pill-button" data-client-resend-otp>REENVIAR CÓDIGO</button>
+        </div>
+        <div style="margin-top:8px;text-align:center">
+          <button class="pill-button" data-show-client-form="register">← Cambiar datos</button>
         </div>
       </div>
     </div>` : ''}
@@ -2194,14 +2279,13 @@ function statusLabel(s) {
 }
 
 function bottomNav() {
-  const ca = state.clientAuth;
-  const accountLabel = ca.loggedIn ? 'MI CUENTA' : 'ACCEDER';
   const tabs = [
     ['inicio', 'INICIO'],
     ['servicios', 'SERVICIOS'],
     ['reservar', 'RESERVAR'],
-    ['blog', 'BLOG'],
-    ['mi-cuenta', accountLabel]
+    ['academia', 'ACADEMIA'],
+    ['galeria', 'GALERÍA'],
+    ['blog', 'BLOG']
   ];
   return `<a class="wa-float" target="_blank" rel="noopener" href="${esc(whatsappChatUrl())}" aria-label="Chatear por WhatsApp">WhatsApp</a><nav class="bottom-nav">${tabs.map(([id, label]) => `<button class="bottom-tab ${state.tab === id ? 'active' : ''}" data-tab="${id}"><span>${label}</span><span class="nav-dot"></span></button>`).join('')}</nav>`;
 }
@@ -3538,7 +3622,9 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.hasAttribute('data-client-login')) return clientLogin();
-  if (target.hasAttribute('data-client-register')) return clientRegister();
+  if (target.hasAttribute('data-client-send-otp')) return sendOtpViaWhatsApp();
+  if (target.hasAttribute('data-client-verify-otp')) return verifyOtpAndRegister();
+  if (target.hasAttribute('data-client-resend-otp')) return sendOtpViaWhatsApp();
   if (target.hasAttribute('data-client-logout')) return clientLogout();
 
   // Blog (public)
@@ -3982,6 +4068,8 @@ app.addEventListener('change', async event => {
 });
 
 app.addEventListener('submit', event => {
+  // Always prevent default form submission to avoid page refresh
+  event.preventDefault();
   if (event.target.matches('[data-staff-form]')) {
     event.preventDefault();
     return createOrUpdateStaff(event.target);

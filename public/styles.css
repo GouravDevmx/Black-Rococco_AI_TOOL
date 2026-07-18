@@ -1847,10 +1847,6 @@ img.img-broken::after {
   padding: 3px 10px;
   border-radius: 12px;
 }
-.blog-body { line-height: 1.7; font-size: 15px; color: var(--muted); margin-top: 18px; }
-.blog-body p { margin-bottom: 14px; }
-.blog-body h2, .blog-body h3 { color: var(--text); margin: 24px 0 10px; font-family: var(--font-display, 'Cormorant Garamond', serif); }
-.blog-body img { max-width: 100%; border-radius: 8px; margin: 12px 0; }
 .blog-body ul, .blog-body ol { padding-left: 22px; margin-bottom: 14px; }
 
 /* =========================================================================
@@ -1929,4 +1925,212 @@ img.img-broken::after {
   font-style: italic;
   margin-top: 8px;
   line-height: 1.4;
+}
+
+/* Account icon now handled by .topbar-icon in the brand-topbar */
+
+/* =========================================================================
+   ADMIN TABS — better alignment with scroll hint
+   ========================================================================= */
+.admin-tabs {
+  gap: 6px;
+  padding: 8px 0 14px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+  mask-image: linear-gradient(to right, transparent 0, black 8px, black calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 8px, black calc(100% - 24px), transparent 100%);
+}
+.admin-tabs .pill-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 10px;
+  padding: 6px 12px;
+}
+
+/* =========================================================================
+   BLOG BODY — Manucurist-style article layout
+   ========================================================================= */
+.blog-body {
+  line-height: 1.8;
+  font-size: 15px;
+  color: var(--text);
+  margin-top: 18px;
+}
+.blog-body p {
+  margin-bottom: 18px;
+  color: var(--muted);
+}
+.blog-body h2 {
+  font-family: var(--font-display, 'Cormorant Garamond', serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 32px 0 12px;
+}
+.blog-body h3 {
+  font-family: var(--font-display, 'Cormorant Garamond', serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 24px 0 10px;
+}
+.blog-body ul, .blog-body ol {
+  padding-left: 22px;
+  margin-bottom: 18px;
+  color: var(--muted);
+}
+.blog-body li { margin-bottom: 6px; }
+.blog-body strong { color: var(--text); }
+.blog-body em { font-style: italic; }
+.blog-body img {
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 16px 0;
+  display: block;
+}
+.blog-body blockquote {
+  border-left: 3px solid var(--gold);
+  padding-left: 16px;
+  margin: 20px 0;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Carousel scroll hint animation */
+.auto-carousel-track {
+  scroll-snap-type: x mandatory;
+}
+.carousel-service-card {
+  scroll-snap-align: start;
+}
+/* Fade edges to hint scrollability */
+.auto-carousel-track::after {
+  content: '';
+  flex-shrink: 0;
+  width: 1px;
+}
+
+/* =========================================================================
+   TOPBAR — Home (left) · Brand (center) · Account (right)
+   ========================================================================= */
+.brand-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-left, .topbar-right { flex: 0 0 44px; display: flex; }
+.topbar-right { justify-content: flex-end; }
+.topbar-center { flex: 1; text-align: center; }
+.topbar-brand {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.topbar-icon {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  position: relative;
+  transition: border-color .2s, color .2s;
+  padding: 0;
+}
+.topbar-icon:hover { border-color: var(--gold); color: var(--gold-text); }
+.topbar-icon-active { border-color: var(--gold); color: var(--gold-text); }
+.topbar-dot {
+  position: absolute; top: 2px; right: 2px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--gold);
+}
+
+/* Hero intro (tagline + rating) — only on home */
+.hero-intro { text-align: center; padding: 6px 16px 2px; }
+.hero-intro .gold-rule { margin: 0 auto 6px; width: 60px; }
+.hero-intro .tagline { margin: 0 0 4px; font-size: 10px; }
+.hero-intro .social-proof { font-size: 11px; margin: 0; }
+
+/* Remove old brand-header padding since topbar replaces it */
+.brand-header { padding: 0; text-align: center; }
+
+/* =========================================================================
+   SPACING & DENSITY — reduce waste
+   ========================================================================= */
+.screen { padding-bottom: 80px; }
+.section { padding: 12px 16px; }
+.section-tight { padding: 8px 16px; }
+.card { padding: 14px; }
+.card-list { gap: 10px; }
+.hero { margin: 8px 12px; min-height: 320px; }
+.hero-has-image { min-height: 300px; }
+.page-header { padding: 14px 16px 6px; }
+
+/* Service cards — ensure description text is always visible */
+.svc-card-desc {
+  -webkit-line-clamp: 3;
+  opacity: 1;
+  color: var(--muted);
+}
+.svc-card-body { gap: 3px; padding: 10px 12px; }
+.svc-card-name { font-size: 15px; }
+.svc-card-price { font-size: 18px; }
+.svc-card-meta { font-size: 10px; }
+
+/* =========================================================================
+   ADMIN TABS — fixed scrollable with full visibility
+   ========================================================================= */
+.admin-tabs {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 5px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 8px 16px 12px !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+  max-width: 100%;
+}
+.admin-tabs .pill-button {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  font-size: 10px;
+  padding: 6px 10px;
+  min-height: 30px;
+}
+.admin-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+.admin-tabs::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 2px;
+}
+
+/* =========================================================================
+   PROMO CARD — fix display
+   ========================================================================= */
+.promo-card {
+  border-left: 3px solid var(--gold);
+  background: var(--card);
 }
