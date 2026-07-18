@@ -2134,3 +2134,187 @@ img.img-broken::after {
   border-left: 3px solid var(--gold);
   background: var(--card);
 }
+
+/* =========================================================================
+   FEATURED SERVICE GRID — vertical cards like reference design
+   ========================================================================= */
+.featured-svc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  padding: 0 16px;
+}
+.featured-svc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .2s;
+}
+.featured-svc-card:hover { box-shadow: 0 4px 16px rgba(176,141,87,.12); }
+.featured-svc-img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f2eadb, #d8c49c 44%, #3a3128 110%);
+}
+.featured-svc-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.featured-svc-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #eee5d4, #c4a875 60%, #4a3d2e);
+}
+.featured-svc-info {
+  padding: 14px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.featured-svc-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.featured-svc-dur {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0;
+}
+.featured-svc-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+.featured-svc-price {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--gold-text);
+  margin: 6px 0;
+}
+.featured-svc-cta {
+  width: 100%;
+  margin-top: auto;
+}
+/* Mobile: 2 columns min */
+@media (max-width: 400px) {
+  .featured-svc-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .featured-svc-info { padding: 10px; }
+  .featured-svc-name { font-size: 13px; }
+  .featured-svc-price { font-size: 17px; }
+}
+
+/* =========================================================================
+   TOPBAR — push icons to absolute corners
+   ========================================================================= */
+.brand-topbar {
+  padding: 8px 8px !important;
+}
+.topbar-left, .topbar-right {
+  flex: 0 0 48px !important;
+}
+.topbar-center {
+  flex: 1 !important;
+  min-width: 0;
+}
+.topbar-brand {
+  font-size: 14px !important;
+  letter-spacing: 2.5px !important;
+}
+
+/* =========================================================================
+   GALLERY CAROUSEL — responsive card widths
+   ========================================================================= */
+.carousel {
+  scroll-snap-type: x mandatory;
+}
+.image-card {
+  flex: 0 0 clamp(200px, 42vw, 300px);
+  scroll-snap-align: start;
+}
+
+/* =========================================================================
+   PERFORMANCE & MOBILE FIXES (audit round)
+   ========================================================================= */
+
+/* P0: Safe area insets for iPhone notch & home indicator */
+.brand-topbar {
+  padding-top: max(8px, env(safe-area-inset-top)) !important;
+  padding-left: max(8px, env(safe-area-inset-left)) !important;
+  padding-right: max(8px, env(safe-area-inset-right)) !important;
+}
+.bottom-nav {
+  padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+}
+.screen, .admin-screen {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+}
+
+/* P0: Prevent iOS input zoom — inputs must be >= 16px */
+.form-field input, .form-field textarea, .form-field select {
+  font-size: 16px !important;
+}
+
+/* P1: Prevent pull-to-refresh hijacking */
+html, body {
+  overscroll-behavior-y: contain;
+}
+
+/* P1: Prevent horizontal overflow */
+html {
+  overflow-x: hidden;
+}
+.phone-shell {
+  overflow-x: hidden;
+}
+
+/* P2: Improve touch targets — minimum 44px for interactive elements */
+.pill-button {
+  min-height: 36px;
+  min-width: 36px;
+}
+.bottom-tab {
+  min-height: 50px;
+}
+.date-chip {
+  min-width: 44px;
+  min-height: 44px;
+}
+.time-btn {
+  min-height: 44px;
+}
+
+/* Performance: will-change hints for animated elements */
+.modal-overlay { will-change: opacity; }
+.lightbox { will-change: opacity; }
+.ac-slide { will-change: opacity; }
+
+/* Performance: contain layout for heavy sections */
+.masonry-grid { contain: layout style; }
+.admin-screen { contain: style; }
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

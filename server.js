@@ -33,6 +33,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const zlib = require('zlib');
+
 const { getSalonBySlug } = require('./lib/tenant');
 const { verifyStorageBucket } = require('./lib/uploads');
 const { SITE_URL } = require('./lib/config');
@@ -257,13 +259,37 @@ function serveStatic(req, res, pathname) {
     }
 
     const isHtml = filePath.endsWith('.html');
-    const body = isHtml ? withCanonicalOrigin(data.toString('utf8'), req) : data;
+    const body = isHtml ? Buffer.from(withCanonicalOrigin(data.toString('utf8'), req)) : data;
 
-    res.writeHead(200, {
-      'Content-Type': contentType(filePath),
-      'Cache-Control': isHtml ? 'no-store' : 'public, max-age=3600'
-    });
-    res.end(body);
+    // Gzip compressible text assets (HTML, CSS, JS, JSON, SVG, XML)
+    const compressible = /\.(html|css|js|json|svg|xml|txt|webmanifest)$/i.test(filePath);
+    const acceptsGzip = (req.headers['accept-encoding'] || '').includes('gzip');
+
+    if (compressible && acceptsGzip) {
+      zlib.gzip(body, (gzErr, compressed) => {
+        if (gzErr) {
+          // Fallback to uncompressed
+          res.writeHead(200, {
+            'Content-Type': contentType(filePath),
+            'Cache-Control': isHtml ? 'no-store' : 'public, max-age=3600'
+          });
+          return res.end(body);
+        }
+        res.writeHead(200, {
+          'Content-Type': contentType(filePath),
+          'Content-Encoding': 'gzip',
+          'Cache-Control': isHtml ? 'no-store' : 'public, max-age=86400',
+          'Vary': 'Accept-Encoding'
+        });
+        res.end(compressed);
+      });
+    } else {
+      res.writeHead(200, {
+        'Content-Type': contentType(filePath),
+        'Cache-Control': isHtml ? 'no-store' : 'public, max-age=3600'
+      });
+      res.end(body);
+    }
   });
 }
 

@@ -1503,16 +1503,20 @@ function promoBanner() {
 
 function featuredServiceCarouselCard(s) {
   const imgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
-  return `<button class="carousel-service-card" data-book="${esc(s.id)}">
-    ${imgs.length
-      ? autoCarousel(imgs, { alt: s.name, className: 'ac-fill', dots: imgs.length > 1 })
-      : `<div class="carousel-service-fallback"></div>`}
-    <div class="carousel-service-caption">
-      <div class="cap-title">${esc(s.name)}</div>
-      <div class="cap-desc">${esc(s.desc)}</div>
-      <div class="cap-price">${priceDisplay(s)}</div>
+  return `<div class="featured-svc-card" data-view-service="${esc(s.id)}">
+    <div class="featured-svc-img">
+      ${imgs.length
+        ? `<img src="${esc(imgs[0])}" alt="${esc(s.name)}" loading="lazy">`
+        : `<div class="featured-svc-placeholder"></div>`}
     </div>
-  </button>`;
+    <div class="featured-svc-info">
+      <div class="featured-svc-name">${esc(s.name)}</div>
+      <div class="featured-svc-dur">${esc(s.dur)} min</div>
+      <div class="featured-svc-desc">${esc(s.desc)}</div>
+      <div class="featured-svc-price">${priceDisplay(s)}</div>
+      <button class="btn btn-primary btn-small featured-svc-cta" data-view-service="${esc(s.id)}">VER DETALLES</button>
+    </div>
+  </div>`;
 }
 
 function featuredServicesCarousel() {
@@ -1520,9 +1524,7 @@ function featuredServicesCarousel() {
     .map(id => serviceById(id))
     .filter(Boolean);
   if (!items.length) return `<div class="empty">Aún no hay servicios destacados.</div>`;
-  const cards = items.map(featuredServiceCarouselCard).join('');
-  const looped = items.length > 1;
-  return `<div class="auto-carousel-track" data-auto-carousel>${cards}${looped ? cards : ''}</div>`;
+  return `<div class="featured-svc-grid">${items.map(featuredServiceCarouselCard).join('')}</div>`;
 }
 
 function mediaThumbCard(m, index, listName) {
