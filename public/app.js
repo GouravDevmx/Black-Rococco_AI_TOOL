@@ -12,6 +12,7 @@ const state = {
   courses: [],
   media: { gallery: [], carousel: [], categories: [] },
   serviceModalId: null,
+  menuOpen: false,
   lightbox: null,
   galleryFilter: '',
   gallerySearch: '',
@@ -1478,14 +1479,39 @@ async function updateCourseRegistrationStatus(id, status) {
 function brandHeader() {
   const [one, two] = splitBrand(state.config.brand.name);
   const ca = state.clientAuth;
-  const isHome = state.tab === 'inicio';
   return `<header class="brand-header">
     <div class="brand-topbar">
-      <div class="topbar-left">${!isHome ? `<button class="topbar-icon" data-tab="inicio" aria-label="Inicio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>` : '<span></span>'}</div>
+      <div class="topbar-left">
+        <button class="topbar-icon topbar-home" data-tab="inicio" aria-label="Inicio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+        <button class="topbar-icon topbar-menu" data-toggle-menu aria-label="Menú"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+      </div>
       <div class="topbar-center"><button class="topbar-brand" data-tab="inicio">${esc(one)} ${esc(two)}</button></div>
-      <div class="topbar-right"><button class="topbar-icon ${ca.loggedIn ? 'topbar-icon-active' : ''}" data-tab="mi-cuenta" aria-label="${ca.loggedIn ? 'Mi cuenta' : 'Acceder'}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>${ca.loggedIn ? '<span class="topbar-dot"></span>' : ''}</button></div>
+      <div class="topbar-right">
+        <button class="topbar-icon topbar-account ${ca.loggedIn ? 'topbar-icon-active' : ''}" data-tab="mi-cuenta" aria-label="${ca.loggedIn ? 'Mi cuenta' : 'Acceder'}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/></svg>${ca.loggedIn ? '<span class="topbar-dot"></span>' : ''}</button>
+      </div>
     </div>
+    ${state.menuOpen ? sideMenu() : ''}
   </header>`;
+}
+
+function sideMenu() {
+  const tabs = [
+    ['inicio', 'Inicio', '🏠'],
+    ['servicios', 'Servicios', '💅'],
+    ['reservar', 'Reservar cita', '📅'],
+    ['academia', 'Academia', '🎓'],
+    ['galeria', 'Galería', '📷'],
+    ['blog', 'Blog', '✍️'],
+    ['mi-cuenta', state.clientAuth.loggedIn ? 'Mi cuenta' : 'Acceder', '👤']
+  ];
+  return `<div class="side-menu-overlay" data-close-menu></div>
+  <nav class="side-menu">
+    <div class="side-menu-head">
+      <span class="side-menu-title">MENÚ</span>
+      <button class="topbar-icon" data-close-menu aria-label="Cerrar">✕</button>
+    </div>
+    ${tabs.map(([id, label, icon]) => `<button class="side-menu-item ${state.tab === id ? 'active' : ''}" data-menu-tab="${id}"><span class="side-menu-icon">${icon}</span><span>${label}</span></button>`).join('')}
+  </nav>`;
 }
 
 function promoBanner() {
@@ -1514,7 +1540,6 @@ function featuredServiceCarouselCard(s) {
       <div class="featured-svc-dur">${esc(s.dur)} min</div>
       <div class="featured-svc-desc">${esc(s.desc)}</div>
       <div class="featured-svc-price">${priceDisplay(s)}</div>
-      <button class="btn btn-primary btn-small featured-svc-cta" data-view-service="${esc(s.id)}">VER DETALLES</button>
     </div>
   </div>`;
 }
@@ -1524,7 +1549,7 @@ function featuredServicesCarousel() {
     .map(id => serviceById(id))
     .filter(Boolean);
   if (!items.length) return `<div class="empty">Aún no hay servicios destacados.</div>`;
-  return `<div class="featured-svc-grid">${items.map(featuredServiceCarouselCard).join('')}</div>`;
+  return `<div class="featured-svc-track">${items.map(featuredServiceCarouselCard).join('')}</div>`;
 }
 
 function mediaThumbCard(m, index, listName) {
@@ -1611,25 +1636,26 @@ function serviceDetailModal() {
   const s = serviceById(state.serviceModalId);
   if (!s) return '';
   const discount = discountedPriceFor(s);
+  const imgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
   return `<div class="modal-overlay" data-close-service-modal>
-    <div class="modal-card">
+    <div class="modal-card" onclick="event.stopPropagation()">
       <button class="modal-close" data-close-service-modal aria-label="Cerrar">✕</button>
-      ${(() => {
-        // Every uploaded image, with arrows + dots + a counter. This used to
-        // render s.imageUrl alone, so photos 2 and 3 were unreachable.
-        const modalImgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
-        return modalImgs.length
-          ? `<div class="modal-image">${autoCarousel(modalImgs, { alt: s.name, arrows: true, counter: true, className: 'ac-fill', eager: true })}</div>`
-          : '';
-      })()}
-      <div class="modal-body">
-        <div class="category-title">${esc(s.cat)}</div>
-        <div class="service-name" style="font-size:22px;margin:6px 0">${esc(s.name)}</div>
-        <div class="service-meta" style="margin-bottom:10px">${esc(s.dur)} min</div>
-        <p class="subtitle">${esc(s.desc)}</p>
-        <div class="price" style="font-size:26px;margin:16px 0 6px">${priceDisplay(s)}</div>
-        ${discount ? `<div class="service-meta">${esc(discount.promo.label || 'Promoción aplicada')}</div>` : ''}
-        <button class="btn btn-primary" style="margin-top:16px;width:100%" data-book-from-modal="${esc(s.id)}">RESERVAR ESTE SERVICIO</button>
+      <div class="modal-scroll">
+        ${imgs.length
+          ? `<div class="modal-img-wrap"><img src="${esc(imgs[0])}" alt="${esc(s.name)}" loading="eager"></div>`
+          : ''}
+        <div class="modal-body">
+          <div class="category-title">${esc(s.cat)}</div>
+          <div class="service-name" style="font-size:22px;margin:6px 0">${esc(s.name)}</div>
+          <div class="service-meta" style="margin-bottom:10px">${esc(s.dur)} min</div>
+          <p class="subtitle">${esc(s.desc)}</p>
+          <div class="price" style="font-size:26px;margin:16px 0 6px">${priceDisplay(s)}</div>
+          ${discount ? `<div class="service-meta">${esc(discount.promo.label || 'Promoción aplicada')}</div>` : ''}
+          <div class="modal-actions">
+            <button class="btn btn-primary" data-book-from-modal="${esc(s.id)}">RESERVAR ESTE SERVICIO</button>
+            <button class="btn btn-outline" data-close-service-modal>VOLVER</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>`;
@@ -3473,6 +3499,8 @@ function render() {
   // than inheriting the phase of an interval that began before this render.
   startCarouselTicker();
   afterRender();
+  // Lock body scroll when modal/lightbox/menu is open
+  document.body.classList.toggle('modal-open', Boolean(state.serviceModalId || state.lightbox || state.menuOpen));
 }
 
 let carouselRafId = null;
@@ -3534,8 +3562,21 @@ app.addEventListener('click', async event => {
   if (event.target.matches('[data-close-lightbox]')) {
     return closeLightbox();
   }
+  if (event.target.matches('[data-close-menu]') || event.target.matches('.side-menu-overlay')) {
+    state.menuOpen = false;
+    return render();
+  }
   const target = event.target.closest('button, a, label, [data-view-service], [data-open-lightbox], [data-blog-open]');
   if (!target) return;
+
+  if (target.hasAttribute('data-toggle-menu')) {
+    state.menuOpen = !state.menuOpen;
+    return render();
+  }
+  if (target.dataset.menuTab) {
+    state.menuOpen = false;
+    return goClient(target.dataset.menuTab);
+  }
 
   if (target.dataset.viewService) {
     state.serviceModalId = target.dataset.viewService;
