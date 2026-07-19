@@ -142,7 +142,7 @@
     "clientPhoto": 1002,
     "clientAccount": 1001,
     "blogPost": 1001,
-    "chatMessage": 1002
+    "chatMessage": 1003
   },
   "chatMessages": [
     {
@@ -164,6 +164,16 @@
       "readByAdmin": false,
       "readByClient": true,
       "createdAt": "2026-07-18T15:31:20.515Z"
+    },
+    {
+      "id": "chm_1003",
+      "threadId": "1d844321619b2b3a631ab801",
+      "sender": "client",
+      "name": "Visitante",
+      "text": "test",
+      "readByAdmin": false,
+      "readByClient": true,
+      "createdAt": "2026-07-19T00:39:10.162Z"
     }
   ],
   "services": [
