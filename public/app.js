@@ -87,6 +87,7 @@ const state = {
   },
   academia: {
     selectedCourseId: null,
+    focusSlug: null,
     name: '',
     whatsapp: '',
     email: '',
@@ -116,6 +117,21 @@ const state = {
     appointmentsLoaded: false
   },
   blogPosts: [],
+  chat: {
+    open: false,
+    messages: [],
+    draft: '',
+    sending: false,
+    loaded: false
+  },
+  adminChat: {
+    threads: [],
+    totalUnread: 0,
+    activeThreadId: null,
+    messages: [],
+    draft: '',
+    toast: null
+  },
   blogDetail: null,
   blogAdmin: {
     editingId: null,
@@ -150,10 +166,59 @@ const api = (url, options = {}) => fetch(url, {
   return payload;
 });
 
+const CLIENT_TABS = ['inicio', 'servicios', 'reservar', 'galeria', 'academia', 'blog', 'mi-cuenta'];
+
+// Mirrors lib/domains/seo.js — must produce identical slugs.
+function clientSlugify(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120) || 'item';
+}
+function clientCourseSlug(course) {
+  return `${clientSlugify(course.title)}-${String(course.id).slice(-6)}`;
+}
+
+/*
+  Routing — path-based URLs, the SEO-friendly kind:
+    /               home
+    /servicios      etc. for every tab
+    /blog/slug      blog article (server injects its meta tags too)
+    /academia/slug  course detail (opens academia with the course focused)
+  Legacy hash URLs (#servicios, #blog/slug, #admin) still work: they are
+  read once at boot and immediately upgraded to the path form.
+*/
 function setHashMode() {
   const hash = location.hash.replace('#', '');
-  if (hash === 'admin') state.mode = 'admin';
-  // Blog detail: #blog/slug-here
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+
+  // Admin stays on hash (never indexed, keeps its own session flow).
+  if (hash === 'admin') { state.mode = 'admin'; return; }
+
+  // Path routing first.
+  if (path.startsWith('/blog/')) {
+    state.mode = 'client';
+    state.tab = 'blog';
+    const slug = decodeURIComponent(path.slice(6));
+    if (slug) loadBlogDetail(slug);
+    return;
+  }
+  if (path.startsWith('/academia/')) {
+    state.mode = 'client';
+    state.tab = 'academia';
+    state.academia.focusSlug = decodeURIComponent(path.slice(10));
+    return;
+  }
+  const pathTab = path === '/' ? 'inicio' : path.slice(1);
+  if (CLIENT_TABS.includes(pathTab)) {
+    state.mode = 'client';
+    state.tab = pathTab;
+    return;
+  }
+
+  // Legacy hash URLs → upgrade to paths.
   if (hash.startsWith('blog/')) {
     state.mode = 'client';
     state.tab = 'blog';
@@ -161,9 +226,10 @@ function setHashMode() {
     if (slug) loadBlogDetail(slug);
     return;
   }
-  if (['inicio', 'servicios', 'reservar', 'galeria', 'academia', 'blog', 'mi-cuenta'].includes(hash)) {
+  if (CLIENT_TABS.includes(hash)) {
     state.mode = 'client';
     state.tab = hash;
+    history.replaceState(null, '', hash === 'inicio' ? '/' : `/${hash}`);
   }
 }
 
@@ -419,8 +485,62 @@ function goClient(tab) {
   state.mode = 'client';
   state.tab = tab;
   if (tab !== 'blog') state.blogDetail = null;
-  history.replaceState(null, '', `#${tab}`);
+  // Navigating anywhere always dismisses transient overlays.
+  state.menuOpen = false;
+  state.serviceModalId = null;
+  const newPath = tab === 'inicio' ? '/' : `/${tab}`;
+  if (location.pathname !== newPath) history.pushState({ tab }, '', newPath);
+  window.scrollTo(0, 0);
+  updatePageMeta();
   render();
+}
+
+// SEO: keep <title> in sync with the visible page. Crawlers that execute JS
+// (Google) index the per-tab titles; users get meaningful browser-tab labels
+// and share previews.
+const PAGE_TITLES = {
+  inicio: null, // keep the rich default title from index.html
+  servicios: 'Servicios y precios',
+  reservar: 'Reservar cita',
+  galeria: 'Galería de trabajos',
+  academia: 'Cursos — Black Rococo Academy',
+  blog: 'Blog',
+  'mi-cuenta': 'Mi cuenta'
+};
+const BASE_TITLE = document.title;
+
+function updatePageMeta() {
+  if (state.blogDetail) {
+    document.title = `${state.blogDetail.title} | Black Rococo`;
+    injectBlogJsonLd(state.blogDetail);
+    return;
+  }
+  removeBlogJsonLd();
+  const t = PAGE_TITLES[state.tab];
+  document.title = t ? `${t} | Black Rococo` : BASE_TITLE;
+}
+
+function injectBlogJsonLd(post) {
+  removeBlogJsonLd();
+  const script = document.createElement('script');
+  script.type = 'application/ld+json';
+  script.id = 'blog-jsonld';
+  script.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.excerpt || '',
+    image: post.coverImageUrl || undefined,
+    author: { '@type': 'Organization', name: post.author || 'Black Rococo' },
+    publisher: { '@type': 'Organization', name: 'Black Rococo' },
+    datePublished: post.createdAt,
+    dateModified: post.updatedAt || post.createdAt
+  });
+  document.head.appendChild(script);
+}
+
+function removeBlogJsonLd() {
+  document.getElementById('blog-jsonld')?.remove();
 }
 
 function goAdmin() {
@@ -587,6 +707,7 @@ async function adminLogout() {
 
 async function loadAdminDashboard() {
   state.admin.data = await api('/api/admin/dashboard');
+  loadAdminChats(); // fire-and-forget; updates the CHAT tab badge
 }
 
 // --- Client auth ---
@@ -715,6 +836,94 @@ async function loadClientAppointments() {
   render();
 }
 
+// --- Visitor chat ---
+async function loadChatMessages() {
+  try {
+    const data = await api('/api/chat/messages');
+    state.chat.messages = data.messages || [];
+    state.chat.loaded = true;
+    render();
+    scrollChatToBottom();
+  } catch (_) {}
+}
+
+async function sendChatMessage() {
+  const text = state.chat.draft.trim();
+  if (!text || state.chat.sending) return;
+  state.chat.sending = true;
+  render();
+  try {
+    const data = await api('/api/chat/messages', {
+      method: 'POST',
+      body: { text, name: state.clientAuth.displayName || undefined }
+    });
+    if (data.message) state.chat.messages.push(data.message);
+    state.chat.draft = '';
+  } catch (err) { /* keep draft so user can retry */ }
+  state.chat.sending = false;
+  render();
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  requestAnimationFrame(() => {
+    const box = document.querySelector('.chat-messages');
+    if (box) box.scrollTop = box.scrollHeight;
+  });
+}
+
+// --- Admin chat ---
+async function loadAdminChats() {
+  try {
+    const data = await api('/api/admin/chats');
+    state.adminChat.threads = data.threads || [];
+    state.adminChat.totalUnread = data.totalUnread || 0;
+    if (state.mode === 'admin') render();
+  } catch (_) {}
+}
+
+async function openAdminThread(threadId) {
+  state.adminChat.activeThreadId = threadId;
+  try {
+    const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}`);
+    state.adminChat.messages = data.messages || [];
+    // Opening marks as read server-side; refresh counts.
+    loadAdminChats();
+  } catch (_) {}
+  render();
+  scrollChatToBottom();
+}
+
+async function sendAdminReply() {
+  const text = state.adminChat.draft.trim();
+  const threadId = state.adminChat.activeThreadId;
+  if (!text || !threadId) return;
+  try {
+    const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}/reply`, {
+      method: 'POST', body: { text }
+    });
+    if (data.message) state.adminChat.messages.push(data.message);
+    state.adminChat.draft = '';
+  } catch (err) { state.admin.error = err.message; }
+  render();
+  scrollChatToBottom();
+}
+
+function showAdminChatToast(info) {
+  state.adminChat.toast = {
+    name: info.name || 'Visitante',
+    threadId: info.threadId,
+    newThread: Boolean(info.newThread)
+  };
+  render();
+  setTimeout(() => {
+    if (state.adminChat.toast?.threadId === info.threadId) {
+      state.adminChat.toast = null;
+      render();
+    }
+  }, 6000);
+}
+
 // --- Blog ---
 async function loadBlogDetail(id) {
   try {
@@ -722,7 +931,8 @@ async function loadBlogDetail(id) {
     state.blogDetail = data.post;
     state.tab = 'blog';
     state.mode = 'client';
-    history.replaceState(null, '', `#blog/${data.post.slug}`);
+    history.pushState({ blog: data.post.slug }, '', `/blog/${data.post.slug}`);
+    updatePageMeta();
   } catch (err) {
     state.blogDetail = null;
   }
@@ -1151,6 +1361,12 @@ async function refreshPublicConfig() {
 function selectCourse(id) {
   state.academia.selectedCourseId = id;
   state.academia.error = '';
+  // Shareable, indexable URL for this specific course.
+  const course = courseById(id);
+  if (course) {
+    history.pushState({ course: id }, '', `/academia/${clientCourseSlug(course)}`);
+    document.title = `${course.title} | Black Rococo Academy`;
+  }
   render();
 }
 
@@ -1511,6 +1727,9 @@ function sideMenu() {
       <button class="topbar-icon" data-close-menu aria-label="Cerrar">✕</button>
     </div>
     ${tabs.map(([id, label, icon]) => `<button class="side-menu-item ${state.tab === id ? 'active' : ''}" data-menu-tab="${id}"><span class="side-menu-icon">${icon}</span><span>${label}</span></button>`).join('')}
+    <div class="side-menu-footer">
+      <a class="side-menu-wa" target="_blank" rel="noopener" href="${esc(whatsappChatUrl())}">💬 ESCRÍBENOS POR WHATSAPP</a>
+    </div>
   </nav>`;
 }
 
@@ -1637,8 +1856,8 @@ function serviceDetailModal() {
   if (!s) return '';
   const discount = discountedPriceFor(s);
   const imgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
-  return `<div class="modal-overlay" data-close-service-modal>
-    <div class="modal-card" onclick="event.stopPropagation()">
+  return `<div class="modal-overlay" data-modal-backdrop>
+    <div class="modal-card">
       <button class="modal-close" data-close-service-modal aria-label="Cerrar">✕</button>
       <div class="modal-scroll">
         ${imgs.length
@@ -1983,7 +2202,21 @@ function bookingStepConfirm() {
 
 function bookingSuccess() {
   const data = state.booking.success;
-  const a = data.appointment;
+  const a = data?.appointment;
+  // Defensive: if the response shape is ever wrong, degrade gracefully
+  // instead of throwing inside render() and blanking the entire app.
+  if (!a) {
+    return `<section class="screen">
+      <div class="success">
+        <div>
+          <div class="check">✓</div>
+          <div class="eyebrow">CITA APARTADA</div>
+          <p class="subtitle">Tu cita fue registrada. Te contactaremos por WhatsApp para confirmar.</p>
+          <button class="btn btn-outline" data-reset-booking>AGENDAR OTRA CITA</button>
+        </div>
+      </div>
+    </section>`;
+  }
   return `<section class="screen">
     <div class="success">
       <div>
@@ -1999,6 +2232,11 @@ function bookingSuccess() {
           <button class="btn btn-outline" data-reset-booking>NUEVA CITA</button>
         </div>
         <div class="reminder-note">Te enviaremos recordatorio si la automatización de WhatsApp está conectada. También puedes guardar la cita en tu calendario.</div>
+        ${!state.clientAuth.loggedIn ? `<div class="card" style="margin-top:18px;text-align:center">
+          <div class="eyebrow">💅 GUARDA TU HISTORIAL</div>
+          <div class="subtitle" style="margin:6px 0 12px">Crea tu cuenta para ver tus citas y reservar más rápido la próxima vez.</div>
+          <button class="btn btn-outline btn-small" data-tab="mi-cuenta">CREAR MI CUENTA</button>
+        </div>` : ''}
       </div>
     </div>
     ${bottomNav()}
@@ -2069,6 +2307,12 @@ function academiaScreen() {
   const ac = state.academia;
   if (ac.success) return academiaSuccessScreen();
   const courses = state.courses || [];
+  // Deep link: /academia/curso-slug pre-selects that course's inscription form.
+  if (ac.focusSlug && !ac.selectedCourseId) {
+    const focused = courses.find(c => clientCourseSlug(c) === ac.focusSlug || c.id === ac.focusSlug);
+    if (focused) ac.selectedCourseId = focused.id;
+    ac.focusSlug = null;
+  }
   const selected = ac.selectedCourseId ? courseById(ac.selectedCourseId) : null;
   return `<section class="screen">
     ${brandHeader()}
@@ -2181,24 +2425,67 @@ function miCuentaScreen() {
     if (!ca.appointmentsLoaded) loadClientAppointments();
 
     const today = todayLocal();
-    const upcoming = ca.appointments.filter(a => a.date >= today && a.status !== 'cancelled');
+    const upcoming = ca.appointments
+      .filter(a => a.date >= today && a.status !== 'cancelled')
+      .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
     const past = ca.appointments.filter(a => a.date < today || a.status === 'cancelled');
+    const completed = past.filter(a => a.status === 'completed');
+    const nextAppt = upcoming[0];
+    const lastService = completed[0] || past[0];
+
+    const daysUntil = nextAppt
+      ? Math.round((new Date(`${nextAppt.date}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000)
+      : null;
+    const countdownLabel = daysUntil === 0 ? '¡HOY!' : daysUntil === 1 ? 'MAÑANA' : `EN ${daysUntil} DÍAS`;
 
     return `<section class="screen mi-cuenta-screen">
       ${brandHeader()}
       <div class="section">
-        <div class="card account-header-card">
-          <div class="title" style="font-size:22px">Hola, ${esc(ca.displayName)}</div>
-          <div class="subtitle" style="margin-top:4px">WhatsApp: ${esc(ca.whatsapp)}</div>
-          <button class="pill-button" style="margin-top:12px" data-client-logout>CERRAR SESIÓN</button>
+        <div class="profile-hero">
+          <div class="profile-avatar">${esc((ca.displayName || '?').trim().charAt(0).toUpperCase())}</div>
+          <div class="profile-hero-info">
+            <div class="title" style="font-size:20px">Hola, ${esc(ca.displayName.split(' ')[0])}</div>
+            <div class="subtitle" style="font-size:12px">${esc(ca.whatsapp)}</div>
+          </div>
+          <button class="pill-button" data-client-logout>SALIR</button>
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-head"><div class="title">Próximas citas</div></div>
-        ${upcoming.length === 0 ? `<div class="card" style="text-align:center"><div class="subtitle">No tienes citas próximas.</div><button class="btn btn-primary" style="margin-top:12px" data-tab="reservar">RESERVAR CITA</button></div>` : ''}
+      ${nextAppt ? `<div class="section">
+        <div class="card next-appt-card">
+          <div class="next-appt-badge">${esc(countdownLabel)}</div>
+          <div class="eyebrow">TU PRÓXIMA CITA</div>
+          <div class="title" style="font-size:19px;margin:6px 0">${esc(nextAppt.serviceName || '')}</div>
+          <div class="next-appt-when">${esc(formatDate(nextAppt.date))} · ${esc(nextAppt.time)}</div>
+          <span class="status-badge status-${esc(nextAppt.status)}" style="margin-top:10px">${esc(statusLabel(nextAppt.status))}</span>
+        </div>
+      </div>` : `<div class="section">
+        <div class="card" style="text-align:center">
+          <div class="subtitle" style="margin-bottom:12px">No tienes citas próximas.</div>
+          <button class="btn btn-primary" data-tab="reservar">RESERVAR CITA</button>
+        </div>
+      </div>`}
+
+      ${lastService && lastService.serviceId ? `<div class="section-tight">
+        <button class="card rebook-card" data-book="${esc(lastService.serviceId)}">
+          <span class="rebook-icon">↻</span>
+          <span class="rebook-text"><strong>Repetir mi último servicio</strong><br><span class="subtitle" style="font-size:12px">${esc(lastService.serviceName || '')}</span></span>
+          <span class="rebook-arrow">→</span>
+        </button>
+      </div>` : ''}
+
+      <div class="section-tight">
+        <div class="profile-stats">
+          <div class="profile-stat"><div class="stat-num">${completed.length}</div><div class="stat-label">VISITAS</div></div>
+          <div class="profile-stat"><div class="stat-num">${upcoming.length}</div><div class="stat-label">PRÓXIMAS</div></div>
+          <div class="profile-stat"><div class="stat-num">${ca.appointments.length}</div><div class="stat-label">TOTAL</div></div>
+        </div>
+      </div>
+
+      ${upcoming.length > 1 ? `<div class="section">
+        <div class="section-head"><div class="title">Más citas próximas</div></div>
         <div class="card-list">
-          ${upcoming.map(a => `<div class="card appt-card">
+          ${upcoming.slice(1).map(a => `<div class="card appt-card">
             <div class="appt-main">
               <div>
                 <div class="eyebrow">${esc(a.date)} · ${esc(a.time)}</div>
@@ -2208,7 +2495,7 @@ function miCuentaScreen() {
             </div>
           </div>`).join('')}
         </div>
-      </div>
+      </div>` : ''}
 
       <div class="section">
         <div class="section-head"><div class="title">Historial</div></div>
@@ -2306,6 +2593,101 @@ function statusLabel(s) {
   return { new: 'NUEVA', confirmed: 'CONFIRMADA', in_progress: 'EN CURSO', completed: 'COMPLETADA', cancelled: 'CANCELADA' }[s] || s;
 }
 
+// =========================================================================
+// CHAT — visitor widget (floating button + slide-up panel)
+// =========================================================================
+function chatWidget() {
+  const ch = state.chat;
+  if (!ch.open) {
+    const unread = ch.messages.filter(m => m.sender === 'admin' && !m.readByClient).length;
+    return `<button class="chat-fab" data-chat-toggle aria-label="Chatear con nosotros">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+      ${unread ? `<span class="chat-fab-badge">${unread}</span>` : ''}
+    </button>`;
+  }
+  return `<div class="chat-panel">
+    <div class="chat-head">
+      <div>
+        <div class="chat-title">Black Rococo</div>
+        <div class="chat-sub">Te respondemos lo antes posible 💅</div>
+      </div>
+      <button class="topbar-icon" data-chat-toggle aria-label="Cerrar chat">✕</button>
+    </div>
+    <div class="chat-messages">
+      ${ch.messages.length === 0 ? `<div class="chat-empty">¡Hola! Escríbenos y te ayudamos con tu cita, precios o cualquier duda.</div>` : ''}
+      ${ch.messages.map(m => `<div class="chat-msg ${m.sender === 'client' ? 'mine' : 'theirs'}">
+        <div class="chat-bubble">${esc(m.text)}</div>
+        <div class="chat-time">${esc(new Date(m.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</div>
+      </div>`).join('')}
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" data-chat-draft value="${esc(ch.draft)}" placeholder="Escribe tu mensaje..." maxlength="2000">
+      <button class="chat-send" data-chat-send ${ch.sending ? 'disabled' : ''} aria-label="Enviar">➤</button>
+    </div>
+  </div>`;
+}
+
+// =========================================================================
+// CHAT — admin toast popup (new incoming message)
+// =========================================================================
+function adminChatToast() {
+  const t = state.adminChat.toast;
+  return `<div class="admin-chat-toast" data-open-chat-thread="${esc(t.threadId)}">
+    <div class="toast-icon">💬</div>
+    <div class="toast-body">
+      <strong>${t.newThread ? 'Nuevo chat' : 'Nuevo mensaje'}</strong><br>
+      <span>${esc(t.name)} te escribió — toca para responder</span>
+    </div>
+  </div>`;
+}
+
+// =========================================================================
+// CHAT — admin panel tab
+// =========================================================================
+function adminChatScreen() {
+  const ac = state.adminChat;
+  const active = ac.activeThreadId;
+
+  if (active) {
+    const thread = ac.threads.find(t => t.threadId === active);
+    return `<div class="section">
+      <div class="section-head compact-head">
+        <div class="title">💬 ${esc(thread?.name || 'Conversación')}</div>
+        <button class="pill-button" data-close-chat-thread>← TODAS</button>
+      </div>
+      <div class="card admin-chat-card">
+        <div class="chat-messages admin-chat-messages">
+          ${ac.messages.map(m => `<div class="chat-msg ${m.sender === 'admin' ? 'mine' : 'theirs'}">
+            <div class="chat-bubble">${esc(m.text)}</div>
+            <div class="chat-time">${esc(m.name)} · ${esc(new Date(m.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
+          </div>`).join('')}
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" data-admin-chat-draft value="${esc(ac.draft)}" placeholder="Responder..." maxlength="2000">
+          <button class="chat-send" data-admin-chat-send aria-label="Enviar">➤</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  return `<div class="section">
+    <div class="section-head compact-head">
+      <div class="title">Chats${ac.totalUnread ? ` (${ac.totalUnread} sin leer)` : ''}</div>
+      <button class="pill-button" data-refresh-chats>ACTUALIZAR</button>
+    </div>
+    ${ac.threads.length === 0 ? '<div class="card" style="text-align:center"><div class="subtitle">Aún no hay conversaciones. Cuando una clienta te escriba desde el sitio, aparecerá aquí.</div></div>' : ''}
+    <div class="card-list">
+      ${ac.threads.map(t => `<button class="card chat-thread-row ${t.unread ? 'has-unread' : ''}" data-open-chat-thread="${esc(t.threadId)}">
+        <div class="chat-thread-main">
+          <div class="chat-thread-name">${esc(t.name)}${t.unread ? `<span class="chat-unread-badge">${t.unread}</span>` : ''}</div>
+          <div class="chat-thread-last">${t.lastSender === 'admin' ? 'Tú: ' : ''}${esc(t.lastText.slice(0, 60))}${t.lastText.length > 60 ? '…' : ''}</div>
+        </div>
+        <div class="chat-thread-time">${esc(new Date(t.lastAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
+      </button>`).join('')}
+    </div>
+  </div>`;
+}
+
 function bottomNav() {
   const tabs = [
     ['inicio', 'INICIO'],
@@ -2335,10 +2717,11 @@ function adminScreen() {
       <div class="card"><div class="eyebrow">NOTIFICACIONES</div><div class="stat-number">${esc(data?.unreadNotifications || 0)}</div></div>
     </div>
     <div class="pill-row admin-tabs">
-      ${[['agenda','AGENDA'],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['blog','BLOG'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
+      ${[['agenda','AGENDA'],['chat',`CHAT${state.adminChat.totalUnread ? ` (${state.adminChat.totalUnread})` : ''}`],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['blog','BLOG'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
     </div>
     ${state.admin.error ? `<div class="error-box">${esc(state.admin.error)}</div>` : ''}
     ${state.admin.tab === 'agenda' ? adminAgenda(data) : ''}
+    ${state.admin.tab === 'chat' ? adminChatScreen() : ''}
     ${state.admin.tab === 'notificaciones' ? adminNotifications(data) : ''}
     ${state.admin.tab === 'servicios' ? adminServices(data) : ''}
     ${state.admin.tab === 'promociones' ? adminPromotions(data) : ''}
@@ -3493,7 +3876,7 @@ function render() {
               : state.tab === 'mi-cuenta'
                 ? miCuentaScreen()
                 : homeScreen();
-  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.mode !== 'admin' && state.lightbox ? lightboxOverlay() : ''}`;
+  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.mode !== 'admin' && state.lightbox ? lightboxOverlay() : ''}${state.mode !== 'admin' ? chatWidget() : ''}${state.mode === 'admin' && state.adminChat.toast ? adminChatToast() : ''}`;
   // render() replaced the DOM, so every carousel element is new. Re-arm the
   // shared ticker so freshly-rendered carousels start cycling from now, rather
   // than inheriting the phase of an interval that began before this render.
@@ -3555,19 +3938,51 @@ function afterRender() {
 }
 
 app.addEventListener('click', async event => {
-  if (event.target.matches('[data-close-service-modal]')) {
+  // Backdrop click: close modal ONLY if the click landed on the backdrop
+  // itself, not on anything inside the modal card.
+  if (event.target.hasAttribute?.('data-modal-backdrop')) {
     state.serviceModalId = null;
     return render();
   }
-  if (event.target.matches('[data-close-lightbox]')) {
+  // Close buttons: use closest() because the ✕ glyph is a text node inside
+  // the button — event.target.matches() misses it when the text is clicked.
+  if (event.target.closest('[data-close-service-modal]')) {
+    state.serviceModalId = null;
+    return render();
+  }
+  if (event.target.closest('[data-close-lightbox]')) {
     return closeLightbox();
   }
-  if (event.target.matches('[data-close-menu]') || event.target.matches('.side-menu-overlay')) {
+  if (event.target.closest('[data-close-menu]') || event.target.classList?.contains('side-menu-overlay')) {
     state.menuOpen = false;
     return render();
   }
-  const target = event.target.closest('button, a, label, [data-view-service], [data-open-lightbox], [data-blog-open]');
+  const target = event.target.closest('button, a, label, [data-view-service], [data-open-lightbox], [data-blog-open], [data-open-chat-thread]');
   if (!target) return;
+
+  // Visitor chat
+  if (target.hasAttribute('data-chat-toggle')) {
+    state.chat.open = !state.chat.open;
+    if (state.chat.open && !state.chat.loaded) loadChatMessages();
+    render();
+    if (state.chat.open) scrollChatToBottom();
+    return;
+  }
+  if (target.hasAttribute('data-chat-send')) return sendChatMessage();
+
+  // Admin chat
+  if (target.dataset.openChatThread) {
+    state.adminChat.toast = null;
+    state.mode = 'admin';
+    state.admin.tab = 'chat';
+    return openAdminThread(target.dataset.openChatThread);
+  }
+  if (target.hasAttribute('data-close-chat-thread')) {
+    state.adminChat.activeThreadId = null;
+    return render();
+  }
+  if (target.hasAttribute('data-admin-chat-send')) return sendAdminReply();
+  if (target.hasAttribute('data-refresh-chats')) return loadAdminChats();
 
   if (target.hasAttribute('data-toggle-menu')) {
     state.menuOpen = !state.menuOpen;
@@ -3578,14 +3993,17 @@ app.addEventListener('click', async event => {
     return goClient(target.dataset.menuTab);
   }
 
-  if (target.dataset.viewService) {
-    state.serviceModalId = target.dataset.viewService;
-    return render();
-  }
+  // data-book-from-modal must be checked BEFORE data-view-service:
+  // the RESERVAR button sits inside a card that may carry data-view-service,
+  // and closest() would otherwise re-open the modal instead of booking.
   if (target.hasAttribute('data-book-from-modal')) {
     const id = target.getAttribute('data-book-from-modal');
     state.serviceModalId = null;
     return startBooking(id);
+  }
+  if (target.dataset.viewService) {
+    state.serviceModalId = target.dataset.viewService;
+    return render();
   }
   if (target.dataset.openLightbox !== undefined) {
     const list = target.dataset.lightboxList === 'homeCarousel' ? state.homeCarouselCache : state.galleryFilteredCache;
@@ -3675,9 +4093,10 @@ app.addEventListener('click', async event => {
     const id = target.dataset.blogOpen || target.closest('[data-blog-open]').dataset.blogOpen;
     return loadBlogDetail(id);
   }
-  if (target.hasAttribute('data-blog-back')) {
+  if (event.target.closest('[data-blog-back]')) {
     state.blogDetail = null;
-    history.replaceState(null, '', '#blog');
+    history.pushState({ tab: 'blog' }, '', '/blog');
+    updatePageMeta();
     return render();
   }
 
@@ -3932,6 +4351,8 @@ app.addEventListener('input', event => {
   if (el.dataset.aboutField && state.admin.aboutUsDraft) state.admin.aboutUsDraft[el.dataset.aboutField] = el.value;
   if (el.dataset.academiaField) state.academia[el.dataset.academiaField] = el.value;
   if (el.dataset.clientAuthField) state.clientAuth[el.dataset.clientAuthField] = el.value;
+  if (el.hasAttribute('data-chat-draft')) state.chat.draft = el.value;
+  if (el.hasAttribute('data-admin-chat-draft')) state.adminChat.draft = el.value;
   // Blog block editor text inputs
   if (el.dataset.blogBlockText !== undefined) {
     const i = Number(el.dataset.blogBlockText);
@@ -4172,11 +4593,33 @@ window.addEventListener('hashchange', () => {
   else render();
 });
 
+// Browser back/forward with path-based URLs.
+window.addEventListener('popstate', () => {
+  state.blogDetail = null;
+  state.menuOpen = false;
+  state.serviceModalId = null;
+  setHashMode();
+  updatePageMeta();
+  render();
+});
+
 document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target.hasAttribute?.('data-chat-draft')) {
+    event.preventDefault();
+    return sendChatMessage();
+  }
+  if (event.key === 'Enter' && event.target.hasAttribute?.('data-admin-chat-draft')) {
+    event.preventDefault();
+    return sendAdminReply();
+  }
   if (event.key === 'Escape') {
     if (state.lightbox) return closeLightbox();
     if (state.serviceModalId) {
       state.serviceModalId = null;
+      return render();
+    }
+    if (state.menuOpen) {
+      state.menuOpen = false;
       return render();
     }
   }
@@ -4189,6 +4632,59 @@ document.addEventListener('keydown', event => {
 loadInitial().catch(err => {
   app.innerHTML = `<div class="loading-card">Error: ${esc(err.message)}</div>`;
 });
+
+// =========================================================================
+// REALTIME — SSE stream keeps every open tab in sync with admin changes.
+// On any `data` event we silently re-fetch the public config (debounced) and
+// re-render, preserving the user's current screen, scroll, modal and inputs
+// where possible. `chat` events refresh the chat panes instantly.
+// =========================================================================
+let refetchTimer = null;
+function scheduleLiveRefresh() {
+  clearTimeout(refetchTimer);
+  refetchTimer = setTimeout(async () => {
+    try {
+      const data = await api('/api/config');
+      state.config = data.settings;
+      state.salonConfig = data.salonConfig || state.salonConfig;
+      state.staff = data.staff || [];
+      state.services = data.services;
+      state.groupedServices = data.groupedServices;
+      state.promotions = data.promotions || [];
+      state.courses = data.courses || [];
+      state.media = data.media || state.media;
+      state.blogPosts = data.blogPosts || [];
+      // Never re-render mid-typing on the booking confirm step: a re-render
+      // rebuilds inputs and would eat the user's keystrokes.
+      const typing = document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+      if (!typing) render();
+      // Admin dashboard refreshes too, unless mid-edit.
+      if (state.mode === 'admin' && state.admin.loggedIn && !typing) {
+        await loadAdminDashboard();
+        render();
+      }
+    } catch (_) { /* transient network error; next event retries */ }
+  }, 800);
+}
+
+function connectRealtime() {
+  if (!window.EventSource) return; // very old browsers: no live sync, app still works
+  const es = new EventSource('/api/events');
+  es.addEventListener('data', scheduleLiveRefresh);
+  es.addEventListener('chat', e => {
+    let info = {};
+    try { info = JSON.parse(e.data); } catch (_) {}
+    // Visitor side: refresh the open chat thread.
+    if (state.chat.open && info.from === 'admin') loadChatMessages();
+    // Admin side: refresh chat list; popup on new client messages.
+    if (state.mode === 'admin' && state.admin.loggedIn && info.from === 'client') {
+      loadAdminChats();
+      showAdminChatToast(info);
+    }
+  });
+  // EventSource auto-reconnects on error; nothing to do.
+}
+connectRealtime();
 
 // (Hero auto-advance now runs on the shared auto-carousel ticker above.)
 

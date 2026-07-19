@@ -84,6 +84,9 @@ const googleCalendarDomain = require('./lib/domains/google-calendar');
 const adminSettings = require('./lib/domains/admin-settings');
 const clientAuthDomain = require('./lib/domains/client-auth');
 const blogsDomain = require('./lib/domains/blogs');
+const seoDomain = require('./lib/domains/seo');
+const chatDomain = require('./lib/domains/chat');
+const realtime = require('./lib/realtime');
 
 // Resolved once at boot (see startServer below), not per-request. null in
 // local JSON-file mode.
@@ -143,6 +146,17 @@ async function handleApi(req, res, pathname, url) {
       if (await coursesDomain.handlePublicRoutes({ ...publicCtx, db })) return;
     }
 
+    // Realtime event stream (SSE) — held open, never returns
+    if (req.method === 'GET' && pathname === '/api/events') {
+      return realtime.addClient(req, res);
+    }
+
+    // Chat (public visitor side)
+    if (pathname.startsWith('/api/chat/')) {
+      const db = await readDb(salonId, ['chatMessages']);
+      if (await chatDomain.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
+
     // Client auth routes (register, login, me, logout, my appointments)
     if (pathname.startsWith('/api/client/')) {
       const db = await readDb(salonId, ['clients', 'clientAccounts', 'appointments', 'services']);
@@ -185,6 +199,7 @@ async function handleApi(req, res, pathname, url) {
       if (await mediaDomain.handleAdminRoutes(adminCtx)) return;
       if (await postsDomain.handleAdminRoutes(adminCtx)) return;
       if (await blogsDomain.handleAdminRoutes(adminCtx)) return;
+      if (await chatDomain.handleAdminRoutes(adminCtx)) return;
       if (await googleCalendarDomain.handleAdminRoutes(adminCtx)) return;
       if (await adminSettings.handleAdminRoutes(adminCtx)) return;
     }
@@ -316,6 +331,17 @@ const server = http.createServer((req, res) => {
         logger.error(`unhandled API rejection ${req.method} ${pathname} [${errorId}]`, err);
         if (!res.headersSent) json(res, 500, { error: 'Ocurrió un error inesperado.', errorId });
       });
+    }
+    // SEO routes: /blog/:slug, /academia/:slug, /sitemap.xml get index.html
+    // with per-page meta tags injected server-side, so crawlers and link
+    // previews (which don't run JS) see real titles/descriptions.
+    if (/^\/(blog|academia)\/[^/]+\/?$/.test(pathname) || pathname === '/sitemap.xml') {
+      return seoDomain.handleSeoRoutes({ req, res, pathname, readDb, salonId: SALON_ID })
+        .then(handled => { if (!handled) serveStatic(req, res, pathname); })
+        .catch(err => {
+          logger.error(`SEO route failed ${pathname}`, err);
+          if (!res.headersSent) serveStatic(req, res, pathname);
+        });
     }
     return serveStatic(req, res, pathname);
   } catch (err) {

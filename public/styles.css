@@ -2235,12 +2235,10 @@ html {
 }
 
 /* =========================================================================
-   BODY SCROLL LOCK
+   BODY SCROLL LOCK — overflow only; position:fixed would jump-scroll to top
    ========================================================================= */
 body.modal-open {
   overflow: hidden !important;
-  position: fixed;
-  width: 100%;
 }
 
 /* =========================================================================
@@ -2422,3 +2420,315 @@ body.modal-open {
   margin-top: 18px;
 }
 .modal-actions .btn { width: 100%; }
+
+/* =========================================================================
+   POLISH PASS — designer/UX/retention refinements
+   ========================================================================= */
+
+/* Smooth page-level fade on tab change */
+.screen { animation: screen-fade .18s ease-out; }
+@keyframes screen-fade { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .screen { animation: none; } }
+
+/* Featured cards: subtle press feedback (mobile has no hover) */
+.featured-svc-card:active { transform: scale(.98); }
+.featured-svc-card { transition: box-shadow .2s, transform .12s; }
+
+/* Blog cards press feedback */
+.blog-card:active { transform: scale(.99); }
+
+/* Modal buttons: RESERVAR should dominate visually */
+.modal-actions .btn-primary { font-weight: 700; letter-spacing: 1.5px; }
+
+/* Booking time slots: clearer busy/free states */
+.time-btn.busy { opacity: .38; text-decoration: line-through; }
+.time-btn.active {
+  background: var(--gold);
+  color: #fff;
+  border-color: var(--gold);
+  box-shadow: 0 2px 10px rgba(176,141,87,.35);
+}
+
+/* Side menu: WhatsApp CTA pinned at the bottom for retention */
+.side-menu-footer {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.side-menu-wa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  background: #25D366;
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* Empty states: friendlier and centered */
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 28px 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Success screen polish */
+.success .check {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: var(--gold-glow);
+  color: var(--gold-text);
+  font-size: 30px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  animation: check-pop .35s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes check-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Scroll hint on featured track: peek the next card edge */
+.featured-svc-track { padding-right: 40px; }
+
+/* Focus rings for keyboard users */
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* =========================================================================
+   PROFILE (MI CUENTA) — revamped layout
+   ========================================================================= */
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.profile-avatar {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), #8a6a3f);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 24px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.profile-hero-info { flex: 1; min-width: 0; }
+
+.next-appt-card {
+  position: relative;
+  border-left: 3px solid var(--gold);
+  overflow: visible;
+}
+.next-appt-badge {
+  position: absolute;
+  top: -10px; right: 14px;
+  background: var(--gold);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(176,141,87,.35);
+}
+.next-appt-when {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--gold-text);
+}
+
+.rebook-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border: 1px dashed var(--gold);
+  background: var(--gold-glow);
+}
+.rebook-card:active { transform: scale(.99); }
+.rebook-icon { font-size: 22px; color: var(--gold-text); flex-shrink: 0; }
+.rebook-text { flex: 1; min-width: 0; font-size: 14px; color: var(--text); }
+.rebook-arrow { color: var(--gold-text); font-size: 18px; flex-shrink: 0; }
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.profile-stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 8px;
+  text-align: center;
+}
+.profile-stat .stat-num {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--gold-text);
+}
+.profile-stat .stat-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* =========================================================================
+   CHAT — visitor widget
+   ========================================================================= */
+.chat-fab {
+  position: fixed;
+  right: max(14px, calc((100vw - 430px) / 2 + 14px));
+  bottom: 132px; /* above the WhatsApp float */
+  z-index: 36;
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gold);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(176,141,87,.4);
+  cursor: pointer;
+}
+.chat-fab:active { transform: scale(.94); }
+.chat-fab-badge {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 18px; height: 18px;
+  border-radius: 9px;
+  background: #d33;
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+.chat-panel {
+  position: fixed;
+  right: max(10px, calc((100vw - 430px) / 2 + 10px));
+  bottom: 84px;
+  z-index: 250;
+  width: min(360px, calc(100vw - 20px));
+  height: min(480px, calc(100dvh - 140px));
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: chat-rise .2s ease-out;
+}
+@keyframes chat-rise { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.chat-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--gold), #8a6a3f);
+  color: #fff;
+}
+.chat-title { font-family: var(--font-display); font-size: 16px; letter-spacing: 1px; }
+.chat-sub { font-size: 11px; opacity: .9; }
+.chat-head .topbar-icon { background: rgba(255,255,255,.18); border-color: transparent; color: #fff; }
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.chat-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 10px; line-height: 1.5; }
+.chat-msg { display: flex; flex-direction: column; max-width: 82%; }
+.chat-msg.mine { align-self: flex-end; align-items: flex-end; }
+.chat-msg.theirs { align-self: flex-start; align-items: flex-start; }
+.chat-bubble {
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.chat-msg.mine .chat-bubble { background: var(--gold); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.theirs .chat-bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.chat-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.chat-input-row {
+  display: flex; gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.chat-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 10px 14px;
+  font-size: 16px;
+  background: var(--bg);
+}
+.chat-input:focus { outline: none; border-color: var(--gold); }
+.chat-send {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gold);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chat-send:disabled { opacity: .5; }
+
+/* Admin chat */
+.admin-chat-card { padding: 0; overflow: hidden; }
+.admin-chat-messages { height: min(420px, 55dvh); }
+.chat-thread-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left; cursor: pointer;
+}
+.chat-thread-row.has-unread { border-left: 3px solid var(--gold); background: var(--gold-glow); }
+.chat-thread-main { flex: 1; min-width: 0; }
+.chat-thread-name { font-weight: 600; font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.chat-unread-badge {
+  min-width: 18px; height: 18px; border-radius: 9px;
+  background: var(--gold); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 5px;
+}
+.chat-thread-last { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-thread-time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+/* Admin toast popup */
+.admin-chat-toast {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--gold);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
+  cursor: pointer;
+  animation: toast-drop .25s ease-out;
+  max-width: min(360px, calc(100vw - 24px));
+}
+@keyframes toast-drop { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.toast-icon { font-size: 22px; }
+.toast-body { font-size: 13px; line-height: 1.4; color: var(--text); }
