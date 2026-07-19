@@ -842,16 +842,45 @@ async function loadChatMessages() {
     const data = await api('/api/chat/messages');
     state.chat.messages = data.messages || [];
     state.chat.loaded = true;
-    render();
+    // Targeted update: if the chat panel is open, patch just the messages
+    // container instead of tearing down the whole DOM with render().
+    const msgBox = document.querySelector('.chat-panel .chat-messages');
+    if (msgBox) {
+      updateChatMessagesDOM(msgBox, state.chat.messages, 'client');
+    } else {
+      render();
+    }
     scrollChatToBottom();
   } catch (_) {}
+}
+
+/* Patch just the chat message list — avoids full innerHTML rebuild and the
+   resulting flash / scroll-jump that users see as "fluctuation". */
+function updateChatMessagesDOM(container, messages, perspective) {
+  const isEmpty = messages.length === 0;
+  const html = isEmpty
+    ? `<div class="chat-empty">¡Hola! Escríbenos y te ayudamos con tu cita, precios o cualquier duda.</div>`
+    : messages.map(m => {
+        const mine = (perspective === 'client' && m.sender === 'client') ||
+                     (perspective === 'admin'  && m.sender === 'admin');
+        const timeStr = perspective === 'admin'
+          ? `${esc(m.name)} · ${esc(new Date(m.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}`
+          : esc(new Date(m.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
+        return `<div class="chat-msg ${mine ? 'mine' : 'theirs'}">
+          <div class="chat-bubble">${esc(m.text)}</div>
+          <div class="chat-time">${timeStr}</div>
+        </div>`;
+      }).join('');
+  container.innerHTML = html;
 }
 
 async function sendChatMessage() {
   const text = state.chat.draft.trim();
   if (!text || state.chat.sending) return;
   state.chat.sending = true;
-  render();
+  // Disable send button directly instead of full render
+  const sendBtn = document.querySelector('.chat-panel .chat-send');
+  if (sendBtn) sendBtn.disabled = true;
   try {
     const data = await api('/api/chat/messages', {
       method: 'POST',
@@ -859,16 +888,28 @@ async function sendChatMessage() {
     });
     if (data.message) state.chat.messages.push(data.message);
     state.chat.draft = '';
+    // Clear input directly
+    const input = document.querySelector('.chat-panel .chat-input');
+    if (input) input.value = '';
   } catch (err) { /* keep draft so user can retry */ }
   state.chat.sending = false;
-  render();
+  // Patch just the message list
+  const msgBox = document.querySelector('.chat-panel .chat-messages');
+  if (msgBox) {
+    updateChatMessagesDOM(msgBox, state.chat.messages, 'client');
+  }
+  if (sendBtn) sendBtn.disabled = false;
   scrollChatToBottom();
 }
 
 function scrollChatToBottom() {
+  // Double-rAF ensures the DOM has fully painted (especially after innerHTML
+  // patches) before we measure scrollHeight. Prevents the "jump" users see.
   requestAnimationFrame(() => {
-    const box = document.querySelector('.chat-messages');
-    if (box) box.scrollTop = box.scrollHeight;
+    requestAnimationFrame(() => {
+      const boxes = document.querySelectorAll('.chat-messages');
+      boxes.forEach(box => { box.scrollTop = box.scrollHeight; });
+    });
   });
 }
 
@@ -894,18 +935,35 @@ async function openAdminThread(threadId) {
   scrollChatToBottom();
 }
 
+/* Targeted admin-chat message patch — mirrors the visitor-side fix so the
+   admin view doesn't flash/jump either when new messages arrive. */
+function patchAdminChatMessages() {
+  const msgBox = document.querySelector('.admin-chat-messages');
+  if (msgBox) {
+    updateChatMessagesDOM(msgBox, state.adminChat.messages, 'admin');
+  } else {
+    render();
+  }
+}
+
 async function sendAdminReply() {
   const text = state.adminChat.draft.trim();
   const threadId = state.adminChat.activeThreadId;
   if (!text || !threadId) return;
+  const sendBtn = document.querySelector('.admin-chat-card .chat-send');
+  if (sendBtn) sendBtn.disabled = true;
   try {
     const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}/reply`, {
       method: 'POST', body: { text }
     });
     if (data.message) state.adminChat.messages.push(data.message);
     state.adminChat.draft = '';
+    const input = document.querySelector('.admin-chat-card .chat-input');
+    if (input) input.value = '';
   } catch (err) { state.admin.error = err.message; }
-  render();
+  // Targeted patch instead of full render
+  patchAdminChatMessages();
+  if (sendBtn) sendBtn.disabled = false;
   scrollChatToBottom();
 }
 
@@ -4674,11 +4732,22 @@ function connectRealtime() {
   es.addEventListener('chat', e => {
     let info = {};
     try { info = JSON.parse(e.data); } catch (_) {}
-    // Visitor side: refresh the open chat thread.
+    // Visitor side: refresh the open chat thread (targeted patch).
     if (state.chat.open && info.from === 'admin') loadChatMessages();
-    // Admin side: refresh chat list; popup on new client messages.
+    // Admin side: refresh chat list + active thread; popup on new messages.
     if (state.mode === 'admin' && state.admin.loggedIn && info.from === 'client') {
       loadAdminChats();
+      // If the matching thread is currently open, refresh its messages too
+      if (state.adminChat.activeThreadId && info.threadId === state.adminChat.activeThreadId) {
+        (async () => {
+          try {
+            const data = await api(`/api/admin/chats/${encodeURIComponent(info.threadId)}`);
+            state.adminChat.messages = data.messages || [];
+            patchAdminChatMessages();
+            scrollChatToBottom();
+          } catch (_) {}
+        })();
+      }
       showAdminChatToast(info);
     }
   });
