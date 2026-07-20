@@ -67,7 +67,15 @@ img, video { max-width: 100%; height: auto; display: block; }
   box-shadow: var(--shadow-lg);
   position: relative;
 }
-html, body { overflow-x: hidden; }
+/* clip prevents horizontal scroll WITHOUT turning body into a scroll
+   container (which overflow-x:hidden on both elements does — that was
+   breaking page scrolling entirely). Fallback for pre-2022 browsers
+   applies hidden to html only, which preserves document scrolling. */
+html, body { overflow-x: clip; }
+@supports not (overflow-x: clip) {
+  html { overflow-x: hidden; }
+  body { overflow-x: visible; }
+}
 
 .loading-card {
   min-height: 100vh;
@@ -2051,8 +2059,8 @@ img.img-broken::after {
   justify-content: space-between;
   /* Full-bleed: the noir band spans the whole viewport even though it lives
      inside the 430px shell. Icons sit near the screen edges. */
-  width: 100vw;
   margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
   padding: 10px max(18px, env(safe-area-inset-left)) 10px max(18px, env(safe-area-inset-right));
   position: sticky;
   top: 0;
@@ -3178,3 +3186,35 @@ button:focus-visible, a:focus-visible {
 }
 .promo-strip-item { font-size: 12.5px; color: var(--gold-text); letter-spacing: .3px; }
 .promo-strip-item b { letter-spacing: 1.5px; }
+
+/* =========================================================================
+   DEPOSIT FLOW — pending-deposit notice + admin client toggle
+   ========================================================================= */
+.deposit-notice { border-left: 3px solid #C77B00; text-align: left; }
+.deposit-notice .eyebrow { color: #C77B00; }
+.deposit-notice.deposit-ok { border-left-color: #3e7d4f; }
+.deposit-notice.deposit-ok .eyebrow { color: #3e7d4f; }
+.status-badge.status-new, .status-chip.new, .status-chip-sm.new {
+  background: rgba(199,123,0,.12);
+  color: #9a6000;
+  border-color: rgba(199,123,0,.4);
+}
+.deposit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.deposit-toggle.on, .deposit-toggle:has(input:checked) {
+  border-color: #3e7d4f;
+  background: rgba(62,125,79,.08);
+}
+.deposit-toggle input { width: 18px; height: 18px; accent-color: #3e7d4f; flex-shrink: 0; }
+.deposit-toggle-text { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.deposit-toggle-text b { color: var(--text); }

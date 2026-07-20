@@ -1370,18 +1370,18 @@ async function handleMultiUploadFiles(input) {
   }
   if (!accepted.length) {
     input.value = '';
-    return render();
+    return renderPreservingForms();
   }
   state.admin.multiUploading = true;
   state.admin.multiUploadProgress = 0;
   state.admin.multiUploadFiles = accepted.map(f => ({ name: f.name, file: f, status: 'pending', url: '' }));
-  render();
+  renderPreservingForms();
   let completed = 0;
   const total = state.admin.multiUploadFiles.length;
   for (const item of state.admin.multiUploadFiles) {
     try {
       item.status = 'uploading';
-      render();
+      renderPreservingForms();
       const uploaded = await uploadAdminMediaFile(item.file);
       item.url = uploaded.url;
       item.kind = uploaded.kind;
@@ -1392,11 +1392,11 @@ async function handleMultiUploadFiles(input) {
     }
     completed++;
     state.admin.multiUploadProgress = Math.round((completed / total) * 100);
-    render();
+    renderPreservingForms();
   }
   state.admin.multiUploading = false;
   input.value = '';
-  render();
+  renderPreservingForms();
 }
 
 async function saveMultiUploadToGallery(category) {
@@ -1431,6 +1431,8 @@ async function saveMultiUploadToGallery(category) {
 async function updateClientProfile(form) {
   const clientId = form.dataset.clientProfileForm;
   const body = Object.fromEntries(new FormData(form).entries());
+  // Checkboxes arrive as 'on'/absent from FormData; the API expects boolean.
+  body.depositOnFile = body.depositOnFile === 'on';
   state.admin.error = '';
   try {
     await api(`/api/admin/clients/${encodeURIComponent(clientId)}`, { method: 'PATCH', body });
@@ -1658,10 +1660,10 @@ async function handleCourseImageFilesSelected(input) {
     : '';
   if (!accepted.length) {
     input.value = '';
-    return render();
+    return renderPreservingForms();
   }
   state.admin.courseImageUploading = true;
-  render();
+  renderPreservingForms();
   try {
     for (const file of accepted) {
       const url = await uploadAdminImage(file);
@@ -1672,12 +1674,12 @@ async function handleCourseImageFilesSelected(input) {
   }
   state.admin.courseImageUploading = false;
   input.value = '';
-  render();
+  renderPreservingForms();
 }
 
 function removeCourseDraftImage(index) {
   state.admin.courseImageDraft.splice(Number(index), 1);
-  render();
+  renderPreservingForms();
 }
 
 async function createOrUpdateCourse(form) {
@@ -1805,11 +1807,11 @@ async function handleMediaFileSelected(input) {
   if (invalid) {
     state.admin.error = invalid;
     input.value = '';
-    return render();
+    return renderPreservingForms();
   }
   state.admin.error = '';
   state.admin.mediaUploading = true;
-  render();
+  renderPreservingForms();
   try {
     const uploaded = await uploadAdminMediaFile(file);
     state.admin.mediaDraft = uploaded;
@@ -1818,12 +1820,12 @@ async function handleMediaFileSelected(input) {
   }
   state.admin.mediaUploading = false;
   input.value = '';
-  render();
+  renderPreservingForms();
 }
 
 function clearMediaDraft() {
   state.admin.mediaDraft = null;
-  render();
+  renderPreservingForms();
 }
 
 async function createOrUpdateMedia(form) {
@@ -2494,6 +2496,10 @@ function bookingSuccess() {
         <div class="eyebrow">CITA APARTADA</div>
         <div class="folio">${esc(a.folio)}</div>
         <div class="subtitle">${esc(a.serviceName)}<br>${esc(a.date)} · ${esc(a.time)}</div>
+        ${a.status === 'new' ? `<div class="card deposit-notice" style="margin:14px 0">
+          <div class="eyebrow">⏳ PENDIENTE DE DEPÓSITO</div>
+          <div class="subtitle" style="margin-top:6px">Tu lugar queda apartado y se <b>confirma al recibir tu depósito</b>. Escríbenos por WhatsApp y te compartimos los datos para realizarlo.</div>
+        </div>` : a.status === 'confirmed' ? `<div class="card deposit-notice deposit-ok" style="margin:14px 0"><div class="eyebrow">✓ CITA CONFIRMADA</div><div class="subtitle" style="margin-top:6px">Tienes depósito en garantía — tu cita quedó confirmada al instante.</div></div>` : ''}
         ${a.appliedPromotion ? `<div class="card promo-card" style="margin:14px 0"><div class="eyebrow">${esc(a.appliedPromotion.label || 'PROMOCIÓN APLICADA')}</div><div class="subtitle">Precio original ${money(a.originalServicePrice)} → pagas ${money(a.servicePrice)}</div></div>` : `<div class="subtitle" style="margin:10px 0">Total: ${money(a.servicePrice)}</div>`}
         <p class="subtitle" style="margin:18px 0">${esc(data.note)}</p>
         <div class="success-actions">
@@ -2888,7 +2894,7 @@ function miCuentaScreen() {
 }
 
 function statusLabel(s) {
-  return { new: 'NUEVA', confirmed: 'CONFIRMADA', in_progress: 'EN CURSO', completed: 'COMPLETADA', cancelled: 'CANCELADA' }[s] || s;
+  return { new: 'PENDIENTE DEPÓSITO', confirmed: 'CONFIRMADA', in_progress: 'EN CURSO', completed: 'COMPLETADA', cancelled: 'CANCELADA' }[s] || s;
 }
 
 // =========================================================================
@@ -3624,6 +3630,10 @@ function adminClientProfile(c) {
         </div>
       </div>
       <form class="card profile-form" data-client-profile-form="${esc(c.id)}">
+        <label class="deposit-toggle ${c.depositOnFile ? 'on' : ''}">
+          <input type="checkbox" name="depositOnFile" ${c.depositOnFile ? 'checked' : ''}>
+          <span class="deposit-toggle-text"><b>Depósito en garantía</b> — sus próximas citas se confirman automáticamente</span>
+        </label>
         <div class="eyebrow">DATOS Y PREFERENCIAS</div>
         <div class="form-grid two-col">
           <div class="form-field"><label>Nombre</label><input name="name" value="${esc(c.name)}"></div>
@@ -4216,6 +4226,34 @@ async function saveHeroImages() {
   }
   state.admin.configSaving = false;
   render();
+}
+
+/* render() rebuilds the whole DOM from state. Admin forms are uncontrolled
+   (values read at submit), so a mid-form render — e.g. after an image
+   upload — wipes everything the admin typed. This wrapper snapshots every
+   text field by a stable signature (name/data-attrs/placeholder + ordinal),
+   renders, then restores values and scroll position. */
+function renderPreservingForms() {
+  const sig = el => `${el.tagName}|${el.type || ''}|${el.name || ''}|${el.dataset.field || el.dataset.mbField || el.dataset.academiaField || ''}|${el.placeholder || ''}`;
+  const els = [...document.querySelectorAll('#app input:not([type="file"]):not([type="hidden"]), #app textarea, #app select')];
+  const counts = {};
+  const snap = new Map();
+  for (const el of els) {
+    const key = `${sig(el)}#${counts[sig(el)] = (counts[sig(el)] || 0) + 1}`;
+    snap.set(key, (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value);
+  }
+  const scrollY = window.scrollY;
+  render();
+  const after = [...document.querySelectorAll('#app input:not([type="file"]):not([type="hidden"]), #app textarea, #app select')];
+  const counts2 = {};
+  for (const el of after) {
+    const key = `${sig(el)}#${counts2[sig(el)] = (counts2[sig(el)] || 0) + 1}`;
+    if (!snap.has(key)) continue;
+    const v = snap.get(key);
+    if (el.type === 'checkbox' || el.type === 'radio') el.checked = v;
+    else if (el.value !== v) el.value = v;
+  }
+  window.scrollTo(0, scrollY);
 }
 
 function render() {
@@ -4812,7 +4850,7 @@ app.addEventListener('change', async event => {
     state.booking.date = el.value;
     state.booking.time = null;
     await loadAvailability();
-    return render();
+    return renderPreservingForms();
   }
   if (el.matches('[data-course-image-input]')) {
     return handleCourseImageFilesSelected(el);
@@ -4827,10 +4865,10 @@ app.addEventListener('change', async event => {
     const file = el.files?.[0];
     if (!file) return;
     const invalid = validateMediaFile(file);
-    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    if (invalid) { state.admin.error = invalid; el.value = ''; return renderPreservingForms(); }
     state.admin.error = '';
     state.blogAdmin.coverUploading = true;
-    render();
+    renderPreservingForms();
     try {
       state.blogAdmin.coverImageDraft = await uploadAdminImage(file);
     } catch (err) {
@@ -4838,17 +4876,17 @@ app.addEventListener('change', async event => {
     }
     state.blogAdmin.coverUploading = false;
     el.value = '';
-    return render();
+    return renderPreservingForms();
   }
   if (el.dataset.blogBlockImageInput !== undefined) {
     const idx = Number(el.dataset.blogBlockImageInput);
     const file = el.files?.[0];
     if (!file) return;
     const invalid = validateMediaFile(file);
-    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    if (invalid) { state.admin.error = invalid; el.value = ''; return renderPreservingForms(); }
     state.admin.error = '';
     state.blogAdmin.blockUploading = idx;
-    render();
+    renderPreservingForms();
     try {
       const url = await uploadAdminImage(file);
       if (state.blogAdmin.blocks[idx]) state.blogAdmin.blocks[idx].url = url;
@@ -4857,16 +4895,16 @@ app.addEventListener('change', async event => {
     }
     state.blogAdmin.blockUploading = null;
     el.value = '';
-    return render();
+    return renderPreservingForms();
   }
   if (el.matches('[data-staff-photo-input]')) {
     const file = el.files?.[0];
     if (!file) return;
     const invalid = validateMediaFile(file);
-    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    if (invalid) { state.admin.error = invalid; el.value = ''; return renderPreservingForms(); }
     state.admin.error = '';
     state.admin.staffUploading = true;
-    render();
+    renderPreservingForms();
     try {
       state.admin.staffPhotoDraft = await uploadAdminImage(file);
     } catch (err) {
@@ -4874,7 +4912,7 @@ app.addEventListener('change', async event => {
     }
     state.admin.staffUploading = false;
     el.value = '';
-    return render();
+    return renderPreservingForms();
   }
   if (el.dataset.clientPhotoInput !== undefined) {
     return uploadClientPhoto(el);
@@ -4883,27 +4921,27 @@ app.addEventListener('change', async event => {
     const file = el.files?.[0];
     if (!file) return;
     const invalid = validateMediaFile(file);
-    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    if (invalid) { state.admin.error = invalid; el.value = ''; return renderPreservingForms(); }
     state.admin.error = '';
-    render();
+    renderPreservingForms();
     try {
       state.admin.promoImageDraft = await uploadAdminImage(file);
     } catch (err) {
       state.admin.error = `No se pudo subir la imagen: ${err.message}`;
     }
     el.value = '';
-    return render();
+    return renderPreservingForms();
   }
   if (el.matches('[data-about-image-input]')) {
     const file = el.files?.[0];
     if (!file) return;
     const invalid = validateMediaFile(file);
-    if (invalid) { state.admin.error = invalid; el.value = ''; return render(); }
+    if (invalid) { state.admin.error = invalid; el.value = ''; return renderPreservingForms(); }
     if (!state.admin.aboutUsDraft) state.admin.aboutUsDraft = { title: 'Sobre Nosotros', text: '', images: [] };
     if (!Array.isArray(state.admin.aboutUsDraft.images)) state.admin.aboutUsDraft.images = [];
     state.admin.error = '';
     state.admin.aboutUsUploading = true;
-    render();
+    renderPreservingForms();
     try {
       const url = await uploadAdminImage(file);
       state.admin.aboutUsDraft.images.push(url);
@@ -4912,7 +4950,7 @@ app.addEventListener('change', async event => {
     }
     state.admin.aboutUsUploading = false;
     el.value = '';
-    return render();
+    return renderPreservingForms();
   }
   if (el.dataset.heroImgFile !== undefined) {
     const idx = Number(el.dataset.heroImgFile);
@@ -4928,11 +4966,11 @@ app.addEventListener('change', async event => {
     if (invalid) {
       state.admin.error = invalid;
       el.value = '';
-      return render();
+      return renderPreservingForms();
     }
     state.admin.error = '';
     state.admin.heroUploadingIndex = idx;
-    render();
+    renderPreservingForms();
     try {
       const url = await uploadAdminImage(file);
       if (!url) throw new Error('El servidor no devolvió una URL de imagen.');
@@ -4941,7 +4979,7 @@ app.addEventListener('change', async event => {
       state.admin.error = `No se pudo subir la foto: ${err.message}`;
     }
     state.admin.heroUploadingIndex = null;
-    render();
+    renderPreservingForms();
   }
 });
 
