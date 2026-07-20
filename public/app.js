@@ -854,6 +854,76 @@ async function loadChatMessages() {
   } catch (_) {}
 }
 
+/* Downscale an image File/Blob to ≤1024px JPEG so it fits the server's
+   1MB request cap. Returns a data URL, or null if it can't be processed. */
+function compressChatImage(file) {
+  return new Promise(resolve => {
+    if (!file || !file.type.startsWith('image/')) return resolve(null);
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const scale = MAX / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      let quality = 0.8;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      // Step quality down until it fits the server cap.
+      while (dataUrl.length > 900_000 && quality > 0.3) {
+        quality -= 0.15;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve(dataUrl.length <= 900_000 ? dataUrl : null);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
+    img.src = objUrl;
+  });
+}
+
+async function sendChatImage(file, isAdmin) {
+  const dataUrl = await compressChatImage(file);
+  if (!dataUrl) return;
+  try {
+    if (isAdmin) {
+      const threadId = state.adminChat.activeThreadId;
+      if (!threadId) return;
+      const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}/reply`, {
+        method: 'POST', body: { text: '', image: dataUrl }
+      });
+      if (data.message) state.adminChat.messages.push(data.message);
+      patchAdminChatMessages();
+    } else {
+      const data = await api('/api/chat/messages', {
+        method: 'POST',
+        body: { text: '', image: dataUrl, name: state.clientAuth.displayName || undefined }
+      });
+      if (data.message) state.chat.messages.push(data.message);
+      const msgBox = document.querySelector('.chat-panel .chat-messages');
+      if (msgBox) updateChatMessagesDOM(msgBox, state.chat.messages, 'client');
+    }
+    scrollChatToBottom();
+  } catch (_) { /* transient; user can retry */ }
+}
+
+/* Escape first, then turn bare URLs into safe clickable links.
+   Only http(s) URLs are linkified, so no javascript: injection is possible. */
+function linkifyEsc(text) {
+  const escaped = esc(text || '');
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, url => {
+    // Trim trailing punctuation that's almost never part of the URL.
+    const clean = url.replace(/[.,;:!?)\]]+$/, '');
+    const trail = url.slice(clean.length);
+    return `<a href="${clean}" target="_blank" rel="noopener noreferrer" class="chat-link">${clean}</a>${trail}`;
+  });
+}
+
 /* Patch just the chat message list — avoids full innerHTML rebuild and the
    resulting flash / scroll-jump that users see as "fluctuation". */
 function updateChatMessagesDOM(container, messages, perspective) {
@@ -867,7 +937,7 @@ function updateChatMessagesDOM(container, messages, perspective) {
           ? `${esc(m.name)} · ${esc(new Date(m.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}`
           : esc(new Date(m.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
         return `<div class="chat-msg ${mine ? 'mine' : 'theirs'}">
-          <div class="chat-bubble">${esc(m.text)}</div>
+          <div class="chat-bubble">${m.imageUrl ? `<img class="chat-img" src="${esc(m.imageUrl)}" alt="Imagen adjunta" loading="lazy" data-chat-img>` : ''}${m.text ? `<div>${linkifyEsc(m.text)}</div>` : ''}</div>
           <div class="chat-time">${timeStr}</div>
         </div>`;
       }).join('');
@@ -899,6 +969,9 @@ async function sendChatMessage() {
     updateChatMessagesDOM(msgBox, state.chat.messages, 'client');
   }
   if (sendBtn) sendBtn.disabled = false;
+  // Keep the caret in the input — continuous typing like a real messenger.
+  const inputEl = document.querySelector('.chat-panel .chat-input');
+  if (inputEl) inputEl.focus();
   scrollChatToBottom();
 }
 
@@ -919,7 +992,11 @@ async function loadAdminChats() {
     const data = await api('/api/admin/chats');
     state.adminChat.threads = data.threads || [];
     state.adminChat.totalUnread = data.totalUnread || 0;
-    if (state.mode === 'admin') render();
+    // Guard: never full-render while the admin is typing (would eat
+    // keystrokes), and never while a chat thread is open (the thread is
+    // patched in place — a full render would re-introduce the flicker).
+    const typing = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+    if (state.mode === 'admin' && !typing && !state.adminChat.activeThreadId) render();
   } catch (_) {}
 }
 
@@ -964,6 +1041,8 @@ async function sendAdminReply() {
   // Targeted patch instead of full render
   patchAdminChatMessages();
   if (sendBtn) sendBtn.disabled = false;
+  const inputEl = document.querySelector('.admin-chat-card .chat-input');
+  if (inputEl) inputEl.focus();
   scrollChatToBottom();
 }
 
@@ -1159,6 +1238,21 @@ async function loadWeeklyAppointments() {
   try {
     const data = await api(`/api/admin/appointments/range?start=${start}&end=${end}`);
     state.admin.weeklyAppointments = data.appointments || [];
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  render();
+}
+
+async function loadMonthlyAppointments() {
+  // monthOffset lets the admin page through months (0 = current).
+  const offset = state.admin.monthOffset || 0;
+  const base = new Date();
+  const first = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+  const last = new Date(base.getFullYear(), base.getMonth() + offset + 1, 0);
+  try {
+    const data = await api(`/api/admin/appointments/range?start=${ymdLocal(first)}&end=${ymdLocal(last)}`);
+    state.admin.monthlyAppointments = data.appointments || [];
   } catch (err) {
     state.admin.error = err.message;
   }
@@ -2176,6 +2270,11 @@ function bookingScreen() {
 function bookingStepService() {
   const groups = Object.entries(state.groupedServices || {});
   const rb = state.booking.rebook;
+  // Logged-in clients: their WhatsApp is already on file — prefill the
+  // rebook lookup so "reserve again" is a single tap.
+  if (state.clientAuth.loggedIn && !rb.whatsapp && state.clientAuth.whatsapp) {
+    rb.whatsapp = state.clientAuth.whatsapp;
+  }
   return `<div class="booking-step">
     <div class="card" style="margin-bottom:16px">
       <div class="eyebrow">¿YA NOS VISITASTE?</div>
@@ -2674,11 +2773,15 @@ function chatWidget() {
     <div class="chat-messages">
       ${ch.messages.length === 0 ? `<div class="chat-empty">¡Hola! Escríbenos y te ayudamos con tu cita, precios o cualquier duda.</div>` : ''}
       ${ch.messages.map(m => `<div class="chat-msg ${m.sender === 'client' ? 'mine' : 'theirs'}">
-        <div class="chat-bubble">${esc(m.text)}</div>
+        <div class="chat-bubble">${m.imageUrl ? `<img class="chat-img" src="${esc(m.imageUrl)}" alt="Imagen adjunta" loading="lazy" data-chat-img>` : ''}${m.text ? `<div>${linkifyEsc(m.text)}</div>` : ''}</div>
         <div class="chat-time">${esc(new Date(m.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))}</div>
       </div>`).join('')}
     </div>
     <div class="chat-input-row">
+      <button class="chat-attach" data-chat-attach aria-label="Adjuntar imagen" title="Adjuntar imagen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <input type="file" accept="image/*" data-chat-file hidden>
       <input class="chat-input" data-chat-draft value="${esc(ch.draft)}" placeholder="Escribe tu mensaje..." maxlength="2000">
       <button class="chat-send" data-chat-send ${ch.sending ? 'disabled' : ''} aria-label="Enviar">➤</button>
     </div>
@@ -2716,11 +2819,15 @@ function adminChatScreen() {
       <div class="card admin-chat-card">
         <div class="chat-messages admin-chat-messages">
           ${ac.messages.map(m => `<div class="chat-msg ${m.sender === 'admin' ? 'mine' : 'theirs'}">
-            <div class="chat-bubble">${esc(m.text)}</div>
+            <div class="chat-bubble">${m.imageUrl ? `<img class="chat-img" src="${esc(m.imageUrl)}" alt="Imagen adjunta" loading="lazy" data-chat-img>` : ''}${m.text ? `<div>${linkifyEsc(m.text)}</div>` : ''}</div>
             <div class="chat-time">${esc(m.name)} · ${esc(new Date(m.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
           </div>`).join('')}
         </div>
         <div class="chat-input-row">
+          <button class="chat-attach" data-admin-chat-attach aria-label="Adjuntar imagen" title="Adjuntar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <input type="file" accept="image/*" data-admin-chat-file hidden>
           <input class="chat-input" data-admin-chat-draft value="${esc(ac.draft)}" placeholder="Responder..." maxlength="2000">
           <button class="chat-send" data-admin-chat-send aria-label="Enviar">➤</button>
         </div>
@@ -2935,6 +3042,7 @@ function adminAgenda(data) {
   </div>` : '';
 
   if (view === 'weekly') return adminAgendaWeekly(data, list, times) + manualBookingForm;
+  if (view === 'monthly') return adminAgendaMonthly(data) + manualBookingForm;
 
   // Daily calendar grid view
   const timeSlots = times.length ? times : ['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
@@ -2945,6 +3053,7 @@ function adminAgenda(data) {
     <div class="pill-row">
       <button class="pill-button ${view === 'daily' ? 'active' : ''}" data-agenda-view="daily">DÍA</button>
       <button class="pill-button ${view === 'weekly' ? 'active' : ''}" data-agenda-view="weekly">SEMANA</button>
+      <button class="pill-button ${view === 'monthly' ? 'active' : ''}" data-agenda-view="monthly">MES</button>
     </div>
     <button class="btn btn-primary btn-small" data-open-manual-booking>+ NUEVA CITA</button>
   </div>
@@ -2984,6 +3093,7 @@ function adminAgendaWeekly(data, list, times) {
     <div class="pill-row">
       <button class="pill-button ${(state.admin.agendaView||'daily') === 'daily' ? 'active' : ''}" data-agenda-view="daily">DÍA</button>
       <button class="pill-button ${(state.admin.agendaView||'daily') === 'weekly' ? 'active' : ''}" data-agenda-view="weekly">SEMANA</button>
+      <button class="pill-button ${(state.admin.agendaView||'daily') === 'monthly' ? 'active' : ''}" data-agenda-view="monthly">MES</button>
     </div>
     <button class="btn btn-primary btn-small" data-open-manual-booking>+ NUEVA CITA</button>
   </div>
@@ -3001,6 +3111,56 @@ function adminAgendaWeekly(data, list, times) {
       }).join('')}
     </div>
   </div>`;}
+
+function adminAgendaMonthly(data) {
+  const offset = state.admin.monthOffset || 0;
+  const base = new Date();
+  const first = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0);
+  const monthName = first.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  const appts = state.admin.monthlyAppointments || [];
+  const byDay = {};
+  appts.forEach(a => { (byDay[a.date] = byDay[a.date] || []).push(a); });
+
+  // Monday-start grid: leading blanks before day 1.
+  const lead = (first.getDay() + 6) % 7;
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(null);
+  for (let d = 1; d <= last.getDate(); d++) {
+    cells.push(new Date(first.getFullYear(), first.getMonth(), d));
+  }
+  while (cells.length % 7) cells.push(null);
+  const today = todayLocal();
+  const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  return `<div class="agenda-controls">
+    <div class="pill-row">
+      <button class="pill-button" data-agenda-view="daily">DÍA</button>
+      <button class="pill-button" data-agenda-view="weekly">SEMANA</button>
+      <button class="pill-button active" data-agenda-view="monthly">MES</button>
+    </div>
+    <button class="btn btn-primary btn-small" data-open-manual-booking>+ NUEVA CITA</button>
+  </div>
+  <div class="month-nav">
+    <button class="pill-button" data-month-nav="-1">‹ ANTERIOR</button>
+    <div class="month-title">${esc(monthName.charAt(0).toUpperCase() + monthName.slice(1))}</div>
+    <button class="pill-button" data-month-nav="1">SIGUIENTE ›</button>
+  </div>
+  <div class="month-grid">
+    ${dayNames.map(n => `<div class="mg-header">${n}</div>`).join('')}
+    ${cells.map(d => {
+      if (!d) return `<div class="mg-cell mg-blank"></div>`;
+      const ymd = ymdLocal(d);
+      const dayAppts = (byDay[ymd] || []).filter(a => a.status !== 'cancelled');
+      const isToday = ymd === today;
+      return `<div class="mg-cell ${isToday ? 'mg-today' : ''} ${dayAppts.length ? 'mg-has-appts' : ''}">
+        <div class="mg-daynum">${d.getDate()}</div>
+        ${dayAppts.length ? `<div class="mg-count">${dayAppts.length} cita${dayAppts.length > 1 ? 's' : ''}</div>
+        <div class="mg-names">${dayAppts.slice(0, 2).map(a => `<span>${esc(a.time)} ${esc((a.clientName || '').split(' ')[0])}</span>`).join('')}${dayAppts.length > 2 ? `<span class="mg-more">+${dayAppts.length - 2} más</span>` : ''}</div>` : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
 
 
 function notificationStatusLabel(status) {
@@ -3934,7 +4094,7 @@ function render() {
               : state.tab === 'mi-cuenta'
                 ? miCuentaScreen()
                 : homeScreen();
-  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.mode !== 'admin' && state.lightbox ? lightboxOverlay() : ''}${state.mode !== 'admin' ? chatWidget() : ''}${state.mode === 'admin' && state.adminChat.toast ? adminChatToast() : ''}`;
+  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.lightbox ? lightboxOverlay() : ''}${state.mode !== 'admin' ? chatWidget() : ''}${state.mode === 'admin' && state.adminChat.toast ? adminChatToast() : ''}`;
   // render() replaced the DOM, so every carousel element is new. Re-arm the
   // shared ticker so freshly-rendered carousels start cycling from now, rather
   // than inheriting the phase of an interval that began before this render.
@@ -4027,6 +4187,19 @@ app.addEventListener('click', async event => {
     return;
   }
   if (target.hasAttribute('data-chat-send')) return sendChatMessage();
+  if (target.hasAttribute('data-chat-img')) {
+    return openLightbox([{ url: target.src, kind: 'image', title: '' }], 0);
+  }
+  if (target.hasAttribute('data-chat-attach')) {
+    const fi = document.querySelector('[data-chat-file]');
+    if (fi) fi.click();
+    return;
+  }
+  if (target.hasAttribute('data-admin-chat-attach')) {
+    const fi = document.querySelector('[data-admin-chat-file]');
+    if (fi) fi.click();
+    return;
+  }
 
   // Admin chat
   if (target.dataset.openChatThread) {
@@ -4274,7 +4447,12 @@ app.addEventListener('click', async event => {
   if (target.dataset.agendaView) {
     state.admin.agendaView = target.dataset.agendaView;
     if (target.dataset.agendaView === 'weekly') loadWeeklyAppointments();
+    if (target.dataset.agendaView === 'monthly') { state.admin.monthOffset = 0; loadMonthlyAppointments(); }
     return render();
+  }
+  if (target.hasAttribute('data-month-nav')) {
+    state.admin.monthOffset = (state.admin.monthOffset || 0) + Number(target.dataset.monthNav);
+    return loadMonthlyAppointments();
   }
   if (target.hasAttribute('data-open-manual-booking')) return openManualBooking();
   if (target.hasAttribute('data-close-manual-booking')) {
@@ -4448,6 +4626,17 @@ app.addEventListener('input', event => {
 
 app.addEventListener('change', async event => {
   const el = event.target;
+  // Chat image attachments (visitor + admin)
+  if (el.hasAttribute('data-chat-file') && el.files?.[0]) {
+    sendChatImage(el.files[0], false);
+    el.value = '';
+    return;
+  }
+  if (el.hasAttribute('data-admin-chat-file') && el.files?.[0]) {
+    sendChatImage(el.files[0], true);
+    el.value = '';
+    return;
+  }
   // Manual booking selects
   if (el.dataset.mbField && state.admin.manualBooking) {
     state.admin.manualBooking[el.dataset.mbField] = el.value;
@@ -4661,6 +4850,23 @@ window.addEventListener('popstate', () => {
   render();
 });
 
+/* Paste an image from the clipboard directly into either chat.
+   Works when the caret is in a chat input (screenshots, copied photos). */
+document.addEventListener('paste', event => {
+  const inChat = event.target.hasAttribute?.('data-chat-draft');
+  const inAdminChat = event.target.hasAttribute?.('data-admin-chat-draft');
+  if (!inChat && !inAdminChat) return;
+  const items = event.clipboardData?.items || [];
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      event.preventDefault();
+      const file = item.getAsFile();
+      if (file) sendChatImage(file, inAdminChat);
+      return;
+    }
+  }
+});
+
 document.addEventListener('keydown', event => {
   if (event.key === 'Enter' && event.target.hasAttribute?.('data-chat-draft')) {
     event.preventDefault();
@@ -4713,11 +4919,14 @@ function scheduleLiveRefresh() {
       state.media = data.media || state.media;
       state.blogPosts = data.blogPosts || [];
       // Never re-render mid-typing on the booking confirm step: a re-render
-      // rebuilds inputs and would eat the user's keystrokes.
-      const typing = document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
-      if (!typing) render();
+      // rebuilds inputs and would eat the user's keystrokes. Also never
+      // re-render while the visitor chat panel or an admin chat thread is
+      // open — those are patched in place and a full render would flash.
+      const typing = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+      const chatOpen = state.chat.open || (state.mode === 'admin' && state.adminChat.activeThreadId);
+      if (!typing && !chatOpen) render();
       // Admin dashboard refreshes too, unless mid-edit.
-      if (state.mode === 'admin' && state.admin.loggedIn && !typing) {
+      if (state.mode === 'admin' && state.admin.loggedIn && !typing && !chatOpen) {
         await loadAdminDashboard();
         render();
       }
