@@ -86,6 +86,7 @@ const clientAuthDomain = require('./lib/domains/client-auth');
 const blogsDomain = require('./lib/domains/blogs');
 const seoDomain = require('./lib/domains/seo');
 const chatDomain = require('./lib/domains/chat');
+const verifyDomain = require('./lib/domains/verify');
 const realtime = require('./lib/realtime');
 const salonRef = require('./lib/salonRef');
 
@@ -145,6 +146,11 @@ async function handleApi(req, res, pathname, url) {
     if (req.method === 'POST' && pathname === '/api/course-registrations') {
       const db = await readDb(salonId, ['courses', 'courseRegistrations', 'notifications']);
       if (await coursesDomain.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
+
+    // WhatsApp OTP verification (in-memory, no db collections needed)
+    if (pathname.startsWith('/api/verify/')) {
+      if (await verifyDomain.handlePublicRoutes({ ...publicCtx })) return;
     }
 
     // Realtime event stream (SSE) — held open, never returns

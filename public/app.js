@@ -12,6 +12,8 @@ const state = {
   courses: [],
   media: { gallery: [], carousel: [], categories: [] },
   serviceModalId: null,
+  courseModalId: null,
+  verify: { stage: 'idle', code: '', verified: false, forNumber: '', error: '', devCode: '' },
   menuOpen: false,
   lightbox: null,
   galleryFilter: '',
@@ -145,6 +147,41 @@ const state = {
 
 const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value || 0);
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+/* Escape then preserve the author's line breaks — textarea content (course
+   descriptions, notes) reads as written instead of collapsing into one blob. */
+const escMultiline = value => esc(value).replace(/\r?\n/g, '<br>');
+
+/* Render admin-authored textarea content EXACTLY as written:
+   blank lines → paragraphs · lines starting with -, *, • → bullet lists ·
+   "1." / "1)" → numbered lists · URLs → clickable links · single newlines
+   inside a paragraph → line breaks. Everything is escaped first, so the
+   admin can never inject HTML — only structure. */
+function richText(text) {
+  const lines = String(text ?? '').split(/\r?\n/);
+  const blocks = [];
+  let cur = [];
+  let curType = null; // 'p' | 'ul' | 'ol'
+  const flush = () => {
+    if (cur.length) blocks.push({ type: curType || 'p', lines: cur });
+    cur = []; curType = null;
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    const isBullet = /^[-*•]\s+/.test(line);
+    const isNum = /^\d+[.)]\s+/.test(line);
+    const type = isBullet ? 'ul' : isNum ? 'ol' : 'p';
+    if (curType && curType !== type) flush();
+    curType = type;
+    cur.push(isBullet ? line.replace(/^[-*•]\s+/, '') : isNum ? line.replace(/^\d+[.)]\s+/, '') : line);
+  }
+  flush();
+  return blocks.map(b => {
+    if (b.type === 'ul') return `<ul class="rt-list">${b.lines.map(l => `<li>${linkifyEsc(l)}</li>`).join('')}</ul>`;
+    if (b.type === 'ol') return `<ol class="rt-list rt-ol">${b.lines.map(l => `<li>${linkifyEsc(l)}</li>`).join('')}</ol>`;
+    return `<p class="rt-p">${b.lines.map(l => linkifyEsc(l)).join('<br>')}</p>`;
+  }).join('');
+}
 // SINGLE-SALON PRODUCT.
 // There used to be a `?salon=<slug>` param here that was forwarded as an
 // `X-Salon-Slug` header on every request. The server ignores it entirely — it
@@ -566,12 +603,13 @@ function startBooking(serviceId = null) {
 async function loadInitial() {
   setHashMode();
   const data = await api('/api/config');
-  state.config = data.settings;
+  state.config = { ...(data.settings || {}), requireVerification: data.requireVerification === true };
   state.salonConfig = data.salonConfig || { colors: [], bebidas: [], estilos: [], serviceCategories: [], galleryCategories: [], heroImages: [] };
   state.staff = data.staff || [];
   state.services = data.services;
   state.groupedServices = data.groupedServices;
   state.promotions = data.promotions || [];
+  state.promoBanners = data.promoBanners || data.promotions || [];
   state.courses = data.courses || [];
   state.media = data.media || { gallery: [], carousel: [], categories: [] };
   state.blogPosts = data.blogPosts || [];
@@ -887,29 +925,31 @@ function compressChatImage(file) {
   });
 }
 
-async function sendChatImage(file, isAdmin) {
+/* Selecting/pasting an image STAGES it — nothing is sent until the user
+   confirms with the send button. Preview renders above the input. */
+async function stageChatImage(file, isAdmin) {
   const dataUrl = await compressChatImage(file);
   if (!dataUrl) return;
-  try {
-    if (isAdmin) {
-      const threadId = state.adminChat.activeThreadId;
-      if (!threadId) return;
-      const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}/reply`, {
-        method: 'POST', body: { text: '', image: dataUrl }
-      });
-      if (data.message) state.adminChat.messages.push(data.message);
-      patchAdminChatMessages();
-    } else {
-      const data = await api('/api/chat/messages', {
-        method: 'POST',
-        body: { text: '', image: dataUrl, name: state.clientAuth.displayName || undefined }
-      });
-      if (data.message) state.chat.messages.push(data.message);
-      const msgBox = document.querySelector('.chat-panel .chat-messages');
-      if (msgBox) updateChatMessagesDOM(msgBox, state.chat.messages, 'client');
-    }
-    scrollChatToBottom();
-  } catch (_) { /* transient; user can retry */ }
+  if (isAdmin) state.adminChat.pendingImage = dataUrl;
+  else state.chat.pendingImage = dataUrl;
+  renderPendingImagePreview(isAdmin);
+}
+
+function renderPendingImagePreview(isAdmin) {
+  const rowSel = isAdmin ? '.admin-chat-card .chat-input-row' : '.chat-panel .chat-input-row';
+  const row = document.querySelector(rowSel);
+  if (!row) return;
+  // Remove any existing preview, then re-add if an image is staged.
+  const existing = row.parentElement.querySelector('.chat-pending-preview');
+  if (existing) existing.remove();
+  const pending = isAdmin ? state.adminChat.pendingImage : state.chat.pendingImage;
+  if (!pending) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-pending-preview';
+  wrap.innerHTML = `<img src="${pending}" alt="Imagen por enviar">
+    <span class="chat-pending-label">Lista para enviar</span>
+    <button class="chat-pending-cancel" data-cancel-pending-image="${isAdmin ? 'admin' : 'client'}" aria-label="Quitar imagen">✕</button>`;
+  row.parentElement.insertBefore(wrap, row);
 }
 
 /* Escape first, then turn bare URLs into safe clickable links.
@@ -946,21 +986,27 @@ function updateChatMessagesDOM(container, messages, perspective) {
 
 async function sendChatMessage() {
   const text = state.chat.draft.trim();
-  if (!text || state.chat.sending) return;
+  const pendingImage = state.chat.pendingImage || null;
+  if ((!text && !pendingImage) || state.chat.sending) return;
   state.chat.sending = true;
-  // Disable send button directly instead of full render
   const sendBtn = document.querySelector('.chat-panel .chat-send');
   if (sendBtn) sendBtn.disabled = true;
   try {
     const data = await api('/api/chat/messages', {
       method: 'POST',
-      body: { text, name: state.clientAuth.displayName || undefined }
+      body: {
+        text,
+        image: pendingImage || undefined,
+        name: state.clientAuth.displayName || undefined,
+        whatsapp: state.clientAuth.whatsapp || undefined
+      }
     });
     if (data.message) state.chat.messages.push(data.message);
     state.chat.draft = '';
-    // Clear input directly
+    state.chat.pendingImage = null;
     const input = document.querySelector('.chat-panel .chat-input');
     if (input) input.value = '';
+    renderPendingImagePreview(false); // clears the preview
   } catch (err) { /* keep draft so user can retry */ }
   state.chat.sending = false;
   // Patch just the message list
@@ -1025,18 +1071,21 @@ function patchAdminChatMessages() {
 
 async function sendAdminReply() {
   const text = state.adminChat.draft.trim();
+  const pendingImage = state.adminChat.pendingImage || null;
   const threadId = state.adminChat.activeThreadId;
-  if (!text || !threadId) return;
+  if ((!text && !pendingImage) || !threadId) return;
   const sendBtn = document.querySelector('.admin-chat-card .chat-send');
   if (sendBtn) sendBtn.disabled = true;
   try {
     const data = await api(`/api/admin/chats/${encodeURIComponent(threadId)}/reply`, {
-      method: 'POST', body: { text }
+      method: 'POST', body: { text, image: pendingImage || undefined }
     });
     if (data.message) state.adminChat.messages.push(data.message);
     state.adminChat.draft = '';
+    state.adminChat.pendingImage = null;
     const input = document.querySelector('.admin-chat-card .chat-input');
     if (input) input.value = '';
+    renderPendingImagePreview(true);
   } catch (err) { state.admin.error = err.message; }
   // Targeted patch instead of full render
   patchAdminChatMessages();
@@ -1501,11 +1550,12 @@ async function createPost(form) {
 
 async function refreshPublicConfig() {
   const cfg = await api('/api/config');
-  state.config = cfg.settings;
+  state.config = { ...(cfg.settings || {}), requireVerification: cfg.requireVerification === true };
   state.salonConfig = cfg.salonConfig || state.salonConfig;
   state.services = cfg.services;
   state.groupedServices = cfg.groupedServices;
   state.promotions = cfg.promotions || [];
+  state.promoBanners = cfg.promoBanners || cfg.promotions || [];
   state.courses = cfg.courses || [];
   state.media = cfg.media || { gallery: [], carousel: [], categories: [] };
 }
@@ -1886,10 +1936,15 @@ function sideMenu() {
 }
 
 function promoBanner() {
-  const promos = state.promotions || [];
+  const promos = state.promoBanners || state.promotions || [];
   if (promos.length) {
-    const p = promos[0];
-    return `<div class="section"><div class="card promo-card"><div class="eyebrow">${esc(p.label || 'PROMOCIÓN')}</div><div class="title" style="font-size:22px;margin:6px 0">${esc(p.title)}</div><div class="subtitle">${esc(p.note)}</div><button class="btn btn-primary" style="margin-top:14px" data-tab="reservar">APARTAR MI LUGAR</button></div></div>`;
+    return `<div class="section">${promos.map(p => `<div class="card promo-card">
+      <div class="eyebrow">${esc(p.label || 'PROMOCIÓN')}</div>
+      <div class="title" style="font-size:22px;margin:6px 0">${esc(p.title)}</div>
+      <div class="subtitle rt-wrap">${richText(p.note)}</div>
+      ${p.code ? `<div class="promo-code-chip">Usa el código <b>${esc(p.code)}</b> al reservar</div>` : ''}
+      <button class="btn btn-primary" style="margin-top:14px" data-tab="reservar">APARTAR MI LUGAR</button>
+    </div>`).join('')}</div>`;
   }
   const legacy = state.config?.promo;
   if (legacy?.enabled) {
@@ -2019,7 +2074,7 @@ function serviceDetailModal() {
           <div class="category-title">${esc(s.cat)}</div>
           <div class="service-name" style="font-size:22px;margin:6px 0">${esc(s.name)}</div>
           <div class="service-meta" style="margin-bottom:10px">${esc(s.dur)} min</div>
-          <p class="subtitle">${esc(s.desc)}</p>
+          <div class="subtitle rt-wrap">${richText(s.desc)}</div>
           <div class="price" style="font-size:26px;margin:16px 0 6px">${priceDisplay(s)}</div>
           ${discount ? `<div class="service-meta">${esc(discount.promo.label || 'Promoción aplicada')}</div>` : ''}
           <div class="modal-actions">
@@ -2246,6 +2301,7 @@ function servicesScreen() {
   return `<section class="screen">
     ${brandHeader()}
     <div class="page-header"><div class="title">Servicios y precios</div><div class="subtitle">Selecciona cualquier servicio para reservar.</div></div>
+    ${promoBanner()}
     <div class="section-tight">
       ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => serviceButton(s, true)).join('')}</div>`).join('')}
     </div>
@@ -2276,6 +2332,7 @@ function bookingStepService() {
     rb.whatsapp = state.clientAuth.whatsapp;
   }
   return `<div class="booking-step">
+    ${(state.promoBanners || []).length ? `<div class="promo-strip">${(state.promoBanners || []).map(p => `<span class="promo-strip-item">🏷️ ${esc(p.title)}${p.code ? ` — código <b>${esc(p.code)}</b>` : ''}</span>`).join('')}</div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <div class="eyebrow">¿YA NOS VISITASTE?</div>
       <div class="subtitle" style="margin:6px 0 10px">Ingresa tu WhatsApp y reserva de nuevo en un paso.</div>
@@ -2352,8 +2409,64 @@ function bookingStepConfirm() {
       <div class="form-field"><label>Alergias o cuidados</label><input value="${esc(b.allergies)}" data-field="allergies" placeholder="Ej. piel sensible, alergia a algún producto"></div>
       <div class="form-field"><label>Nota para tu cita</label><textarea data-field="notes" rows="3" placeholder="Idea de diseño, ocasión especial, referencia, etc.">${esc(b.notes)}</textarea></div>
     </div>
+    ${verificationBlock(b.whatsapp)}
     ${b.error ? `<div class="error-box">${esc(b.error)}</div>` : ''}
     <button class="btn btn-primary" data-confirm-booking>CONFIRMAR CITA</button>
+  </div>`;
+}
+
+async function requestVerifyCode(whatsapp) {
+  state.verify.error = '';
+  const digits = (whatsapp || '').replace(/\D/g, '');
+  if (digits.length < 10) {
+    state.verify.error = 'Primero escribe tu WhatsApp de 10 dígitos arriba.';
+    return render();
+  }
+  try {
+    const data = await api('/api/verify/request', { method: 'POST', body: { whatsapp } });
+    state.verify.stage = 'code';
+    state.verify.devCode = data.devCode || '';
+    state.verify.code = '';
+  } catch (err) {
+    state.verify.error = err.message;
+  }
+  render();
+}
+
+async function confirmVerifyCode(whatsapp) {
+  state.verify.error = '';
+  try {
+    await api('/api/verify/confirm', { method: 'POST', body: { whatsapp, code: state.verify.code } });
+    state.verify.verified = true;
+    state.verify.forNumber = (whatsapp || '').replace(/\D/g, '').slice(-10);
+    state.verify.stage = 'idle';
+    state.verify.devCode = '';
+  } catch (err) {
+    state.verify.error = err.message;
+  }
+  render();
+}
+
+/* WhatsApp verification widget: shown only when the server requires it and
+   the visitor isn't logged in. States: idle → code sent → verified. */
+function verificationBlock(whatsapp) {
+  if (!state.config?.requireVerification || state.clientAuth.loggedIn) return '';
+  const v = state.verify;
+  if (v.verified && v.forNumber === (whatsapp || '').replace(/\D/g, '').slice(-10)) {
+    return `<div class="card verify-card verify-ok">✓ WhatsApp verificado</div>`;
+  }
+  return `<div class="card verify-card">
+    <div class="eyebrow">VERIFICACIÓN</div>
+    <div class="subtitle" style="margin:4px 0 10px">Para proteger la agenda, confirma que este WhatsApp es tuyo. Te enviaremos un código de 6 dígitos.</div>
+    ${v.stage === 'code'
+      ? `<div class="verify-row">
+          <input class="verify-input" data-verify-code inputmode="numeric" maxlength="6" placeholder="000000" value="${esc(v.code || '')}">
+          <button class="btn btn-primary btn-small" data-verify-confirm>CONFIRMAR CÓDIGO</button>
+        </div>
+        ${v.devCode ? `<div class="service-meta" style="margin-top:6px">Modo prueba — código: <b>${esc(v.devCode)}</b></div>` : ''}
+        <button class="pill-button" style="margin-top:8px" data-verify-request>REENVIAR CÓDIGO</button>`
+      : `<button class="btn btn-outline btn-small" data-verify-request>VERIFICAR MI WHATSAPP</button>`}
+    ${v.error ? `<div class="error-box" style="margin-top:8px">${esc(v.error)}</div>` : ''}
   </div>`;
 }
 
@@ -2442,6 +2555,30 @@ function masonryItem(m, index) {
   </div>`;
 }
 
+/* Full-detail course modal: scrollable body, line breaks preserved, images,
+   and a direct path to inscription. */
+function courseDetailModal() {
+  const c = courseById(state.courseModalId);
+  if (!c) return '';
+  return `<div class="modal-overlay" data-modal-backdrop>
+    <div class="modal-card course-modal-card">
+      <button class="modal-close" data-close-course-modal aria-label="Cerrar">✕</button>
+      ${courseImageCarousel(c)}
+      <div class="course-modal-body">
+        <div class="eyebrow">BLACK ROCOCO ACADEMY</div>
+        <div class="title" style="margin:4px 0 2px">${esc(c.title)}</div>
+        <div class="service-meta" style="margin-bottom:10px">${esc(c.duration)}${c.level ? ` · ${esc(c.level)}` : ''}${c.startDate ? ` · Próxima fecha: ${esc(formatDate(c.startDate))}` : ''}${c.capacity ? ` · Cupo: ${esc(c.capacity)}` : ''}</div>
+        <div class="price" style="font-size:22px;margin-bottom:12px">${money(c.price)}</div>
+        <div class="course-modal-desc">${richText(c.description)}</div>
+      </div>
+      <div class="course-modal-actions">
+        <button class="btn btn-outline" data-close-course-modal>VOLVER</button>
+        <button class="btn btn-primary" data-select-course="${esc(c.id)}" data-close-course-modal>INSCRIBIRME</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function courseById(id) {
   return (state.courses || []).find(c => c.id === id);
 }
@@ -2480,12 +2617,15 @@ function academiaScreen() {
         <div class="top">
           <div>
             <div class="service-name">${esc(c.title)}</div>
-            <p>${esc(c.description)}</p>
+            <p class="course-desc-preview">${esc(c.description)}</p>
             <div class="service-meta">${esc(c.duration)}${c.level ? ` · ${esc(c.level)}` : ''}${c.startDate ? ` · Próxima fecha: ${esc(formatDate(c.startDate))}` : ''}${c.capacity ? ` · Cupo: ${esc(c.capacity)}` : ''}</div>
           </div>
           <div class="price">${money(c.price)}</div>
         </div>
-        <button class="btn btn-outline btn-small" data-select-course="${esc(c.id)}">INSCRIBIRME</button>
+        <div class="pill-row" style="margin-top:4px">
+          <button class="btn btn-outline btn-small" data-open-course-modal="${esc(c.id)}">VER DETALLES</button>
+          <button class="btn btn-primary btn-small" data-select-course="${esc(c.id)}">INSCRIBIRME</button>
+        </div>
       </div>`).join('')}</div>` : `<div class="empty">Muy pronto anunciaremos nuevos cursos. Síguenos en Instagram para no perderte la fecha.</div>`}
     </div>
     ${selected ? `<div class="card preference-card" style="margin:0 16px 20px">
@@ -2496,6 +2636,7 @@ function academiaScreen() {
       </div>
       <div class="form-field"><label>Email (opcional)</label><input value="${esc(ac.email)}" data-academia-field="email" placeholder="tu@correo.com"></div>
       <div class="form-field"><label>Comentarios (opcional)</label><textarea data-academia-field="notes" rows="3" placeholder="Experiencia previa, dudas, etc.">${esc(ac.notes)}</textarea></div>
+      ${verificationBlock(ac.whatsapp)}
       ${ac.error ? `<div class="error-box">${esc(ac.error)}</div>` : ''}
       <button class="btn btn-primary" data-confirm-course-registration>CONFIRMAR INSCRIPCIÓN</button>
     </div>` : ''}
@@ -2844,7 +2985,7 @@ function adminChatScreen() {
     <div class="card-list">
       ${ac.threads.map(t => `<button class="card chat-thread-row ${t.unread ? 'has-unread' : ''}" data-open-chat-thread="${esc(t.threadId)}">
         <div class="chat-thread-main">
-          <div class="chat-thread-name">${esc(t.name)}${t.unread ? `<span class="chat-unread-badge">${t.unread}</span>` : ''}</div>
+          <div class="chat-thread-name">${esc(t.name)}${t.whatsapp ? `<span class="chat-thread-wa">📱 ${esc(t.whatsapp)}</span>` : ''}${t.unread ? `<span class="chat-unread-badge">${t.unread}</span>` : ''}</div>
           <div class="chat-thread-last">${t.lastSender === 'admin' ? 'Tú: ' : ''}${esc(t.lastText.slice(0, 60))}${t.lastText.length > 60 ? '…' : ''}</div>
         </div>
         <div class="chat-thread-time">${esc(new Date(t.lastAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
@@ -4094,7 +4235,7 @@ function render() {
               : state.tab === 'mi-cuenta'
                 ? miCuentaScreen()
                 : homeScreen();
-  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.lightbox ? lightboxOverlay() : ''}${state.mode !== 'admin' ? chatWidget() : ''}${state.mode === 'admin' && state.adminChat.toast ? adminChatToast() : ''}`;
+  app.innerHTML = `${body}${state.mode !== 'admin' && state.serviceModalId ? serviceDetailModal() : ''}${state.mode !== 'admin' && state.courseModalId ? courseDetailModal() : ''}${state.lightbox ? lightboxOverlay() : ''}${state.mode !== 'admin' ? chatWidget() : ''}${state.mode === 'admin' && state.adminChat.toast ? adminChatToast() : ''}`;
   // render() replaced the DOM, so every carousel element is new. Re-arm the
   // shared ticker so freshly-rendered carousels start cycling from now, rather
   // than inheriting the phase of an interval that began before this render.
@@ -4184,6 +4325,13 @@ app.addEventListener('click', async event => {
     if (state.chat.open && !state.chat.loaded) loadChatMessages();
     render();
     if (state.chat.open) scrollChatToBottom();
+    return;
+  }
+  if (target.hasAttribute('data-cancel-pending-image')) {
+    const isAdmin = target.dataset.cancelPendingImage === 'admin';
+    if (isAdmin) state.adminChat.pendingImage = null;
+    else state.chat.pendingImage = null;
+    renderPendingImagePreview(isAdmin);
     return;
   }
   if (target.hasAttribute('data-chat-send')) return sendChatMessage();
@@ -4297,6 +4445,14 @@ app.addEventListener('click', async event => {
   if (target.dataset.time) {
     state.booking.time = target.dataset.time;
     return render();
+  }
+  if (target.hasAttribute('data-verify-request')) {
+    const wa = state.tab === 'academia' ? state.academia.whatsapp : state.booking.whatsapp;
+    return requestVerifyCode(wa);
+  }
+  if (target.hasAttribute('data-verify-confirm')) {
+    const wa = state.tab === 'academia' ? state.academia.whatsapp : state.booking.whatsapp;
+    return confirmVerifyCode(wa);
   }
   if (target.hasAttribute('data-confirm-booking')) return createBooking();
   if (target.hasAttribute('data-reset-booking')) {
@@ -4491,6 +4647,16 @@ app.addEventListener('click', async event => {
   if (target.dataset.toggleService) {
     return updateService(target.dataset.toggleService, { active: target.dataset.active !== '1' });
   }
+  if (target.dataset.openCourseModal) {
+    state.courseModalId = target.dataset.openCourseModal;
+    return render();
+  }
+  if (target.closest('[data-close-course-modal]')) {
+    state.courseModalId = null;
+    // If the same button also selects the course (INSCRIBIRME in the modal),
+    // fall through to selectCourse below.
+    if (!target.dataset.selectCourse) return render();
+  }
   if (target.dataset.selectCourse) return selectCourse(target.dataset.selectCourse);
   if (target.hasAttribute('data-cancel-course-select')) {
     state.academia.selectedCourseId = null;
@@ -4587,6 +4753,7 @@ app.addEventListener('input', event => {
   if (el.dataset.aboutField && state.admin.aboutUsDraft) state.admin.aboutUsDraft[el.dataset.aboutField] = el.value;
   if (el.dataset.academiaField) state.academia[el.dataset.academiaField] = el.value;
   if (el.dataset.clientAuthField) state.clientAuth[el.dataset.clientAuthField] = el.value;
+  if (el.hasAttribute('data-verify-code')) state.verify.code = el.value.replace(/\D/g, '').slice(0, 6);
   if (el.hasAttribute('data-chat-draft')) state.chat.draft = el.value;
   if (el.hasAttribute('data-admin-chat-draft')) state.adminChat.draft = el.value;
   // Blog block editor text inputs
@@ -4628,12 +4795,12 @@ app.addEventListener('change', async event => {
   const el = event.target;
   // Chat image attachments (visitor + admin)
   if (el.hasAttribute('data-chat-file') && el.files?.[0]) {
-    sendChatImage(el.files[0], false);
+    stageChatImage(el.files[0], false);
     el.value = '';
     return;
   }
   if (el.hasAttribute('data-admin-chat-file') && el.files?.[0]) {
-    sendChatImage(el.files[0], true);
+    stageChatImage(el.files[0], true);
     el.value = '';
     return;
   }
@@ -4861,7 +5028,7 @@ document.addEventListener('paste', event => {
     if (item.kind === 'file' && item.type.startsWith('image/')) {
       event.preventDefault();
       const file = item.getAsFile();
-      if (file) sendChatImage(file, inAdminChat);
+      if (file) stageChatImage(file, inAdminChat);
       return;
     }
   }
@@ -4878,6 +5045,10 @@ document.addEventListener('keydown', event => {
   }
   if (event.key === 'Escape') {
     if (state.lightbox) return closeLightbox();
+    if (state.courseModalId) {
+      state.courseModalId = null;
+      return render();
+    }
     if (state.serviceModalId) {
       state.serviceModalId = null;
       return render();
@@ -4909,12 +5080,13 @@ function scheduleLiveRefresh() {
   refetchTimer = setTimeout(async () => {
     try {
       const data = await api('/api/config');
-      state.config = data.settings;
+      state.config = { ...(data.settings || {}), requireVerification: data.requireVerification === true };
       state.salonConfig = data.salonConfig || state.salonConfig;
       state.staff = data.staff || [];
       state.services = data.services;
       state.groupedServices = data.groupedServices;
       state.promotions = data.promotions || [];
+  state.promoBanners = data.promoBanners || data.promotions || [];
       state.courses = data.courses || [];
       state.media = data.media || state.media;
       state.blogPosts = data.blogPosts || [];

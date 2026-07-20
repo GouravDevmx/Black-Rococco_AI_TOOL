@@ -129,49 +129,36 @@
     }
   },
   "counters": {
-    "appointment": 1027,
-    "client": 1011,
+    "appointment": 1041,
+    "client": 1012,
     "post": 1000,
-    "notification": 1035,
-    "promotion": 1006,
-    "course": 1006,
-    "registration": 1006,
-    "service": 1007,
-    "media": 1010,
-    "staff": 1006,
-    "clientPhoto": 1006,
+    "notification": 1053,
+    "promotion": 1012,
+    "course": 1009,
+    "registration": 1009,
+    "service": 1010,
+    "media": 1016,
+    "staff": 1009,
+    "clientPhoto": 1009,
     "clientAccount": 1001,
     "blogPost": 1001,
-    "chatMessage": 1008
+    "chatMessage": 1010
   },
-  "notifications": [],
-  "courses": [
+  "notifications": [
     {
-      "id": "course_1001",
-      "title": "Curso Poligel",
-      "description": "",
-      "price": 2500,
-      "duration": "",
-      "level": "",
-      "imageUrls": [],
-      "capacity": 0,
-      "startDate": "",
-      "active": true,
-      "sort": 10,
-      "createdAt": "2026-07-13T22:12:12.157Z",
-      "updatedAt": "2026-07-13T22:12:12.157Z"
-    }
-  ],
-  "courseRegistrations": [
-    {
-      "id": "reg_1001",
-      "courseId": "course_1001",
-      "name": "Ana Test",
-      "whatsapp": "3331112222",
-      "email": "",
-      "notes": "",
-      "status": "new",
-      "createdAt": "2026-07-13T22:12:12.236Z"
+      "id": "not_1053",
+      "kind": "client_reminder",
+      "channel": "client_whatsapp_reminder",
+      "title": "Recordatorio clienta BR-1028",
+      "message": "Falta configurar CLIENT_REMINDER_WEBHOOK_URL. Usa el botón para enviar recordatorio manual a Clienta.",
+      "appointmentId": "apt_1028",
+      "status": "setup_required",
+      "unread": true,
+      "actionLabel": "Enviar recordatorio",
+      "actionUrl": "https://api.whatsapp.com/send/?phone=&text=Hola%20%20%E2%9C%A8%20Te%20recordamos%20tu%20cita%20en%2024%20horas%20en%20Black%20Rococo.%0AServicio%3A%20REG%20Test%20Service%0AFecha%3A%202026-07-21%0AHora%3A%2010%3A00%0ADirecci%C3%B3n%3A%20Calzada%20de%20los%20Pirules%20260%2C%20Ciudad%20Granja%2C%20Zapopan%0AResponde%20este%20mensaje%20si%20necesitas%20ayuda.",
+      "error": "",
+      "createdAt": "2026-07-20T19:48:24.949Z",
+      "updatedAt": "2026-07-20T19:48:24.949Z"
     }
   ],
   "services": [
@@ -314,22 +301,6 @@
   ],
   "clients": [
     {
-      "id": "cli_1001",
-      "name": "María López",
-      "whatsapp": "3312345678",
-      "createdAt": "2026-07-01T18:00:00.000Z",
-      "email": "",
-      "instagram": "",
-      "birthday": "",
-      "styleChoice": "Natural elegante / french fino",
-      "colorChoice": "Nude rosado y blanco lechoso",
-      "drinkChoice": "Café americano",
-      "timePreference": "Mañanas entre 10:00 y 12:00",
-      "notes": "Prefiere uñas medianas, acabado limpio y sin mucha pedrería.",
-      "allergies": "",
-      "updatedAt": "2026-07-01T18:00:00.000Z"
-    },
-    {
       "id": "cli_1002",
       "name": "Ana Torres",
       "whatsapp": "3322221111",
@@ -439,7 +410,7 @@
       "notes": "NOTES-REG",
       "allergies": "ALG-REG",
       "createdAt": "2026-07-14T01:39:03.735Z",
-      "updatedAt": "2026-07-20T04:53:28.015Z"
+      "updatedAt": "2026-07-20T19:48:23.384Z"
     },
     {
       "id": "cli_1009",
@@ -455,7 +426,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.755Z",
-      "updatedAt": "2026-07-20T04:53:27.893Z"
+      "updatedAt": "2026-07-20T19:48:23.235Z"
     },
     {
       "id": "cli_1010",
@@ -471,7 +442,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.816Z",
-      "updatedAt": "2026-07-20T04:53:27.922Z"
+      "updatedAt": "2026-07-20T19:48:23.265Z"
     },
     {
       "id": "cli_1011",
@@ -487,7 +458,23 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.829Z",
-      "updatedAt": "2026-07-20T04:53:27.936Z"
+      "updatedAt": "2026-07-20T19:48:23.285Z"
+    },
+    {
+      "id": "cli_1012",
+      "name": "Real User",
+      "whatsapp": "3399999999",
+      "email": "",
+      "instagram": "",
+      "birthday": "",
+      "styleChoice": "",
+      "colorChoice": "",
+      "drinkChoice": "",
+      "timePreference": "",
+      "notes": "",
+      "allergies": "",
+      "createdAt": "2026-07-20T19:33:13.190Z",
+      "updatedAt": "2026-07-20T19:33:13.190Z"
     }
   ],
   "appointments": [
@@ -1296,29 +1283,438 @@
       "remindersSent": {},
       "createdAt": "2026-07-20T04:53:27.936Z",
       "googleEventId": null
+    },
+    {
+      "id": "apt_1028",
+      "folio": "BR-1028",
+      "clientId": "cli_1001",
+      "serviceId": "svc_1002",
+      "date": "2026-07-21",
+      "time": "10:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "Natural elegante / french fino",
+        "colorChoice": "Nude rosado y blanco lechoso",
+        "drinkChoice": "Café americano",
+        "timePreference": "Mañanas entre 10:00 y 12:00",
+        "notes": "Prefiere uñas medianas, acabado limpio y sin mucha pedrería.",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {
+        "24h": {
+          "status": "setup_required",
+          "notificationId": "not_1053",
+          "attemptedAt": "2026-07-20T19:48:24.949Z"
+        }
+      },
+      "createdAt": "2026-07-20T05:15:22.118Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1029",
+      "folio": "BR-1029",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1008",
+      "date": "2026-07-27",
+      "time": "10:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T05:46:39.534Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1030",
+      "folio": "BR-1030",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1008",
+      "date": "2026-07-27",
+      "time": "11:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T05:46:39.548Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1031",
+      "folio": "BR-1031",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1008",
+      "date": "2026-07-27",
+      "time": "10:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T05:46:39.575Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1032",
+      "folio": "BR-1032",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1008",
+      "date": "2026-07-27",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1008",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T05:46:39.590Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1033",
+      "folio": "BR-1033",
+      "clientId": "cli_1012",
+      "serviceId": "svc_1002",
+      "date": "2026-07-22",
+      "time": "10:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:33:13.190Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1034",
+      "folio": "BR-1034",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1009",
+      "date": "2026-07-27",
+      "time": "13:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:33:28.327Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1035",
+      "folio": "BR-1035",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1009",
+      "date": "2026-07-27",
+      "time": "16:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:33:28.340Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1036",
+      "folio": "BR-1036",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1009",
+      "date": "2026-07-27",
+      "time": "13:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 450,
+      "appliedPromotion": {
+        "id": "promo_1001",
+        "code": "",
+        "label": "TEST",
+        "type": "percent",
+        "value": 10,
+        "discountAmount": 50,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:33:28.367Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1037",
+      "folio": "BR-1037",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1009",
+      "date": "2026-07-27",
+      "time": "17:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1009",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:33:28.381Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1038",
+      "folio": "BR-1038",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1010",
+      "date": "2026-07-28",
+      "time": "10:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:48:23.224Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1039",
+      "folio": "BR-1039",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1010",
+      "date": "2026-07-28",
+      "time": "11:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:48:23.235Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1040",
+      "folio": "BR-1040",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1010",
+      "date": "2026-07-28",
+      "time": "10:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:48:23.265Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1041",
+      "folio": "BR-1041",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1010",
+      "date": "2026-07-28",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1012",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-20T19:48:23.286Z",
+      "googleEventId": null
     }
   ],
-  "promotions": [
+  "promotions": [],
+  "courses": [
     {
-      "id": "promo_1001",
-      "code": "",
-      "label": "TEST",
-      "title": "Promo",
-      "note": "",
-      "type": "percent",
-      "value": 10,
-      "scope": "all",
-      "categoryValue": "",
-      "serviceIds": [],
+      "id": "course_1001",
+      "title": "Curso Poligel",
+      "description": "",
+      "price": 2500,
+      "duration": "",
+      "level": "",
+      "imageUrls": [],
+      "capacity": 0,
       "startDate": "",
-      "endDate": "",
       "active": true,
-      "autoApply": true,
-      "usageLimit": 0,
-      "usageCount": 19,
-      "imageUrl": "/uploads/promo.jpg",
-      "createdAt": "2026-07-13T15:50:39.583Z",
-      "updatedAt": "2026-07-13T15:50:39.583Z"
+      "sort": 10,
+      "createdAt": "2026-07-13T22:12:12.157Z",
+      "updatedAt": "2026-07-13T22:12:12.157Z"
+    }
+  ],
+  "courseRegistrations": [
+    {
+      "id": "reg_1001",
+      "courseId": "course_1001",
+      "name": "Ana Test",
+      "whatsapp": "3331112222",
+      "email": "",
+      "notes": "",
+      "status": "new",
+      "createdAt": "2026-07-13T22:12:12.236Z"
     }
   ],
   "media": [],
@@ -1383,6 +1779,7 @@
       "threadId": "28855c673785697e752a7081",
       "sender": "client",
       "name": "Ana",
+      "whatsapp": "",
       "text": "Hola, cuanto cuesta el gelish?",
       "imageUrl": null,
       "readByAdmin": false,
@@ -1394,6 +1791,7 @@
       "threadId": "b975f3ce3637b290b1ec06b7",
       "sender": "client",
       "name": "Ana",
+      "whatsapp": "",
       "text": "segundo mensaje",
       "imageUrl": null,
       "readByAdmin": false,
@@ -1405,11 +1803,24 @@
       "threadId": "1d844321619b2b3a631ab801",
       "sender": "client",
       "name": "Visitante",
+      "whatsapp": "",
       "text": "test",
       "imageUrl": null,
       "readByAdmin": false,
       "readByClient": true,
       "createdAt": "2026-07-19T00:39:10.162Z"
+    },
+    {
+      "id": "chm_1010",
+      "threadId": "0c0e6a39693de07a12e24b9a",
+      "sender": "client",
+      "name": "María López",
+      "whatsapp": "3312345678",
+      "text": "Hola soy clienta registrada",
+      "imageUrl": null,
+      "readByAdmin": false,
+      "readByClient": true,
+      "createdAt": "2026-07-20T05:46:21.399Z"
     }
   ]
 }
