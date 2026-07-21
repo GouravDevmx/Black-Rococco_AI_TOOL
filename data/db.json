@@ -129,17 +129,17 @@
     }
   },
   "counters": {
-    "appointment": 1059,
+    "appointment": 1067,
     "client": 1013,
     "post": 1000,
-    "notification": 1075,
-    "promotion": 1017,
-    "course": 1013,
-    "registration": 1013,
-    "service": 1014,
-    "media": 1024,
-    "staff": 1013,
-    "clientPhoto": 1013,
+    "notification": 1086,
+    "promotion": 1020,
+    "course": 1015,
+    "registration": 1015,
+    "service": 1016,
+    "media": 1028,
+    "staff": 1015,
+    "clientPhoto": 1015,
     "clientAccount": 1001,
     "blogPost": 1001,
     "chatMessage": 1010
@@ -429,7 +429,7 @@
       "notes": "NOTES-REG",
       "allergies": "ALG-REG",
       "createdAt": "2026-07-14T01:39:03.735Z",
-      "updatedAt": "2026-07-21T06:36:14.496Z",
+      "updatedAt": "2026-07-21T14:46:23.573Z",
       "depositOnFile": false
     },
     {
@@ -446,7 +446,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.755Z",
-      "updatedAt": "2026-07-21T06:36:14.368Z",
+      "updatedAt": "2026-07-21T14:46:23.436Z",
       "depositOnFile": false
     },
     {
@@ -463,7 +463,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.816Z",
-      "updatedAt": "2026-07-21T06:36:14.393Z",
+      "updatedAt": "2026-07-21T14:46:23.459Z",
       "depositOnFile": false
     },
     {
@@ -480,7 +480,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.829Z",
-      "updatedAt": "2026-07-21T06:36:14.412Z",
+      "updatedAt": "2026-07-21T14:46:23.479Z",
       "depositOnFile": false
     }
   ],
@@ -1322,6 +1322,11 @@
           "status": "setup_required",
           "notificationId": "not_1053",
           "attemptedAt": "2026-07-20T19:48:24.949Z"
+        },
+        "2h": {
+          "status": "setup_required",
+          "notificationId": "not_1076",
+          "attemptedAt": "2026-07-21T14:45:39.743Z"
         }
       },
       "createdAt": "2026-07-20T05:15:22.118Z",
@@ -2089,6 +2094,198 @@
       },
       "remindersSent": {},
       "createdAt": "2026-07-21T06:36:14.412Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1060",
+      "folio": "BR-1060",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1015",
+      "date": "2026-07-30",
+      "time": "13:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:45:52.084Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1061",
+      "folio": "BR-1061",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1015",
+      "date": "2026-07-30",
+      "time": "16:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:45:52.097Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1062",
+      "folio": "BR-1062",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1015",
+      "date": "2026-07-30",
+      "time": "13:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:45:52.122Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1063",
+      "folio": "BR-1063",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1015",
+      "date": "2026-07-30",
+      "time": "17:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1019",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:45:52.146Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1064",
+      "folio": "BR-1064",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1016",
+      "date": "2026-07-31",
+      "time": "10:00",
+      "status": "cancelled",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:46:23.424Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1065",
+      "folio": "BR-1065",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1016",
+      "date": "2026-07-31",
+      "time": "11:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:46:23.436Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1066",
+      "folio": "BR-1066",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1016",
+      "date": "2026-07-31",
+      "time": "10:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:46:23.459Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1067",
+      "folio": "BR-1067",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1016",
+      "date": "2026-07-31",
+      "time": "12:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1020",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-21T14:46:23.479Z",
       "googleEventId": null
     }
   ],

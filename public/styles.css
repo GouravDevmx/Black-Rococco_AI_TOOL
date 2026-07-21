@@ -66,15 +66,11 @@ img, video { max-width: 100%; height: auto; display: block; }
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   position: relative;
-}
-/* clip prevents horizontal scroll WITHOUT turning body into a scroll
-   container (which overflow-x:hidden on both elements does — that was
-   breaking page scrolling entirely). Fallback for pre-2022 browsers
-   applies hidden to html only, which preserves document scrolling. */
-html, body { overflow-x: clip; }
-@supports not (overflow-x: clip) {
-  html { overflow-x: hidden; }
-  body { overflow-x: visible; }
+  /* Contain horizontal overflow HERE, not on html/body. Setting overflow-x on
+     the root elements makes body a scroll container and breaks vertical page
+     scrolling. clip (not hidden) avoids creating a scrollport, so the sticky
+     topbar inside still sticks. */
+  overflow-x: clip;
 }
 
 .loading-card {
@@ -2059,9 +2055,9 @@ img.img-broken::after {
   justify-content: space-between;
   /* Full-bleed: the noir band spans the whole viewport even though it lives
      inside the 430px shell. Icons sit near the screen edges. */
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  padding: 10px max(18px, env(safe-area-inset-left)) 10px max(18px, env(safe-area-inset-right));
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
   position: sticky;
   top: 0;
   z-index: 50;
@@ -2235,12 +2231,19 @@ html, body {
   overscroll-behavior-y: contain;
 }
 
-/* P1: Prevent horizontal overflow */
-html {
-  overflow-x: hidden;
-}
+/* P1: Prevent horizontal overflow.
+   NOTE: never set overflow-x on <html>. Per CSS spec, when one axis is
+   non-visible and the other is visible, the visible axis computes to `auto`,
+   which turns the root into a scroll container and breaks normal page
+   scrolling. Containment belongs on the shell, and must be `clip` rather
+   than `hidden`: `hidden` creates a scroll container too, which additionally
+   kills `position: sticky` on the topbar inside it. */
 .phone-shell {
-  overflow-x: hidden;
+  overflow-x: clip;
+}
+@supports not (overflow-x: clip) {
+  /* Old engines: accept a little horizontal slack rather than break scroll. */
+  .phone-shell { overflow-x: visible; }
 }
 
 /* P2: Improve touch targets — minimum 44px for interactive elements */
@@ -3218,3 +3221,207 @@ button:focus-visible, a:focus-visible {
 .deposit-toggle input { width: 18px; height: 18px; accent-color: #3e7d4f; flex-shrink: 0; }
 .deposit-toggle-text { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
 .deposit-toggle-text b { color: var(--text); }
+
+
+/* =========================================================================
+   HOME BRAND NAME — first thing the visitor sees
+   ========================================================================= */
+.home-brand { text-align: center; padding: 26px 20px 4px; }
+.home-brand-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 9vw, 44px);
+  line-height: 1.08;
+  letter-spacing: clamp(3px, 1.6vw, 8px);
+  text-transform: uppercase;
+  color: var(--noir);
+  font-weight: 400;
+}
+
+/* =========================================================================
+   UNIFIED HORIZONTAL CAROUSEL — gallery, promos, featured services
+   ========================================================================= */
+.carousel-shell { position: relative; }
+.scroll-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-noir);
+  background: rgba(20,16,12,.82);
+  color: var(--gold-champagne);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 4;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 2px;
+  transition: background .15s, transform .15s;
+}
+.scroll-nav:hover { background: var(--noir); }
+.scroll-nav:active { transform: translateY(-50%) scale(.94); }
+.scroll-nav.prev { left: 8px; }
+.scroll-nav.next { right: 8px; }
+/* Arrows are a pointer affordance; touch users swipe. */
+@media (hover: hover) and (pointer: fine) {
+  .scroll-nav { display: flex; }
+}
+
+/* =========================================================================
+   PROMO CAROUSEL — image-led editorial cards
+   ========================================================================= */
+.promo-section .section-head { margin-bottom: 12px; }
+.promo-carousel {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 16px;
+  padding: 2px 16px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.promo-carousel::-webkit-scrollbar { display: none; }
+.promo-slide {
+  position: relative;
+  flex: 0 0 clamp(260px, 78%, 320px);
+  scroll-snap-align: start;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.promo-slide-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Scrim keeps overlaid text readable on any uploaded photo */
+.promo-slide.has-img::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(20,16,12,.15) 0%, rgba(20,16,12,.55) 45%, rgba(20,16,12,.92) 100%);
+}
+.promo-slide-body { position: relative; z-index: 2; padding: 16px 18px 18px; }
+.promo-slide-label {
+  font-size: 10px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: var(--gold-text);
+  font-weight: 600;
+}
+.promo-slide.has-img .promo-slide-label { color: var(--gold-champagne); }
+.promo-slide-title {
+  margin: 6px 0 4px;
+  font-family: var(--font-display);
+  font-size: 21px;
+  line-height: 1.2;
+  font-weight: 400;
+  color: var(--text);
+}
+.promo-slide.has-img .promo-slide-title { color: #fff; }
+.promo-slide-note { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.promo-slide.has-img .promo-slide-note { color: rgba(255,255,255,.86); }
+.promo-slide-note .rt-p { margin-bottom: 4px; }
+.promo-slide-code {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border: 1px dashed var(--gold);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--gold-text);
+  background: var(--gold-glow);
+}
+.promo-slide.has-img .promo-slide-code {
+  color: var(--gold-champagne);
+  background: rgba(20,16,12,.45);
+  border-color: var(--gold-champagne);
+}
+.promo-slide-btn { margin-top: 12px; width: 100%; }
+
+/* =========================================================================
+   FEATURED SERVICES CAROUSEL
+   ========================================================================= */
+.featured-svc-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 16px;
+  padding: 2px 16px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.featured-svc-track::-webkit-scrollbar { display: none; }
+.featured-svc-card { scroll-snap-align: start; }
+
+/* Course photo carousel sizing inside cards and the detail modal */
+.course-ac { border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 10px; }
+.course-ac .ac-viewport { aspect-ratio: 16 / 10; }
+.course-modal-card .course-ac { border-radius: 0; margin-bottom: 0; }
+
+/* =========================================================================
+   IMAGE FALLBACKS — graceful degradation when an asset fails to load
+   ========================================================================= */
+/* An <img> whose src failed gets its src removed by the inline onerror, so it
+   collapses. These rules paint a branded placeholder in its place instead of
+   leaving a hole. */
+img[data-failed] {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  background:
+    linear-gradient(135deg, rgba(176,141,87,.10) 0%, rgba(176,141,87,.04) 100%),
+    var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: inherit;
+  position: relative;
+}
+/* Monogram placeholder, centred */
+img[data-failed]::after {
+  content: 'BR';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: var(--gold);
+  opacity: .55;
+}
+/* A promo whose photo failed loses the dark scrim, otherwise the overlaid
+   text would sit on a light placeholder and become unreadable. */
+.promo-slide.has-img:has(img[data-failed])::after { background: none; }
+.promo-slide.has-img:has(img[data-failed]) .promo-slide-title { color: var(--text); }
+.promo-slide.has-img:has(img[data-failed]) .promo-slide-note { color: var(--muted); }
+.promo-slide.has-img:has(img[data-failed]) .promo-slide-label { color: var(--gold-text); }
+.promo-slide.has-img:has(img[data-failed]) .promo-slide-code {
+  color: var(--gold-text);
+  background: var(--gold-glow);
+  border-color: var(--gold);
+}
+/* Fallback for engines without :has() — keep text legible via a scrim that
+   works on both photo and placeholder. */
+@supports not selector(:has(img)) {
+  .promo-slide.has-img::after {
+    background: linear-gradient(180deg, rgba(20,16,12,.10) 0%, rgba(20,16,12,.60) 50%, rgba(20,16,12,.90) 100%);
+  }
+}

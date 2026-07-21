@@ -149,7 +149,6 @@ const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', curre
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
 /* Escape then preserve the author's line breaks — textarea content (course
    descriptions, notes) reads as written instead of collapsing into one blob. */
-const escMultiline = value => esc(value).replace(/\r?\n/g, '<br>');
 
 /* Render admin-authored textarea content EXACTLY as written:
    blank lines → paragraphs · lines starting with -, *, • → bullet lists ·
@@ -296,6 +295,14 @@ function splitBrand(name) {
 
 const CAROUSEL_INTERVAL_MS = 3000;
 
+/* Broken image URLs are a fact of life: a Supabase object gets deleted, a
+   pasted external link rots, an upload half-completes. Rather than showing
+   the browser's broken-image glyph, every <img> the app renders carries an
+   inline onerror that swaps in a branded placeholder and flags the wrapper
+   so CSS can restyle around it. Inline (not a listener) because error can
+   fire before any delegated listener is attached. */
+const IMG_FALLBACK = "this.dataset.failed='1';this.parentElement&&this.parentElement.classList.add('has-failed-img');this.removeAttribute('src');this.onerror=null;";
+
 function carouselSlides(el) {
   return [...el.querySelectorAll('.ac-slide')];
 }
@@ -407,7 +414,7 @@ function autoCarousel(images, opts = {}) {
     <div class="ac-viewport">
       ${list.map((url, i) => {
         const cap = (captions && captions[i]) || {};
-        return `<img class="ac-slide ${i === 0 ? 'active' : ''}" src="${esc(url)}" alt="${esc(alt)}" loading="${eager && i === 0 ? 'eager' : 'lazy'}"${cap.title ? ` data-ac-title="${esc(cap.title)}"` : ''}${cap.subtitle ? ` data-ac-subtitle="${esc(cap.subtitle)}"` : ''}>`;
+        return `<img class="ac-slide ${i === 0 ? 'active' : ''}" src="${esc(url)}" alt="${esc(alt)}" loading="${eager && i === 0 ? 'eager' : 'lazy'}" onerror="${IMG_FALLBACK}"${cap.title ? ` data-ac-title="${esc(cap.title)}"` : ''}${cap.subtitle ? ` data-ac-subtitle="${esc(cap.subtitle)}"` : ''}>`;
       }).join('')}
     </div>
     ${arrows && multi ? `<button class="ac-arrow ac-prev" data-ac-prev aria-label="Anterior">‹</button><button class="ac-arrow ac-next" data-ac-next aria-label="Siguiente">›</button>` : ''}
@@ -1940,19 +1947,41 @@ function sideMenu() {
 function promoBanner() {
   const promos = state.promoBanners || state.promotions || [];
   if (promos.length) {
-    return `<div class="section">${promos.map(p => `<div class="card promo-card">
-      <div class="eyebrow">${esc(p.label || 'PROMOCIÓN')}</div>
-      <div class="title" style="font-size:22px;margin:6px 0">${esc(p.title)}</div>
-      <div class="subtitle rt-wrap">${richText(p.note)}</div>
-      ${p.code ? `<div class="promo-code-chip">Usa el código <b>${esc(p.code)}</b> al reservar</div>` : ''}
-      <button class="btn btn-primary" style="margin-top:14px" data-tab="reservar">APARTAR MI LUGAR</button>
-    </div>`).join('')}</div>`;
+    return `<div class="section promo-section">
+      <div class="section-head"><div class="title">Promociones</div></div>
+      ${promoCarousel(promos)}
+    </div>`;
   }
   const legacy = state.config?.promo;
   if (legacy?.enabled) {
     return `<div class="section"><div class="card promo-card"><div class="eyebrow">${esc(legacy.label)}</div><div class="title" style="font-size:22px;margin:6px 0">${esc(legacy.title)}</div><div class="subtitle">${esc(legacy.note)}</div><button class="btn btn-primary" style="margin-top:14px" data-tab="reservar">APARTAR MI LUGAR</button></div></div>`;
   }
   return '';
+}
+
+// Horizontal scrolling promotion gallery with nav buttons — used in the
+// homepage banner and the reservation flow strip.
+/* Editorial promo cards: the admin-uploaded image is the hero of the card,
+   with the offer text overlaid on a gradient scrim so it stays readable over
+   any photo. Swipeable horizontally with snap points + arrow nav. */
+function promoCarousel(promos) {
+  const multi = promos.length > 1;
+  return `<div class="carousel-shell promo-carousel-wrap">
+    <div class="promo-carousel" data-scroll-track>
+      ${promos.map(p => `<article class="promo-slide ${p.imageUrl ? 'has-img' : ''}">
+        ${p.imageUrl ? `<img class="promo-slide-img" src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}">` : ''}
+        <div class="promo-slide-body">
+          <div class="promo-slide-label">${esc(p.label || 'PROMOCIÓN')}</div>
+          <h3 class="promo-slide-title">${esc(p.title)}</h3>
+          ${p.note ? `<div class="promo-slide-note rt-wrap">${richText(p.note)}</div>` : ''}
+          ${p.code ? `<div class="promo-slide-code">Código <b>${esc(p.code)}</b></div>` : ''}
+          <button class="btn btn-primary btn-small promo-slide-btn" data-tab="reservar">APARTAR MI LUGAR</button>
+        </div>
+      </article>`).join('')}
+    </div>
+    ${multi ? `<button class="scroll-nav prev" data-scroll-nav="-1" aria-label="Anterior">‹</button>
+    <button class="scroll-nav next" data-scroll-nav="1" aria-label="Siguiente">›</button>` : ''}
+  </div>`;
 }
 
 function featuredServiceCarouselCard(s) {
@@ -1977,7 +2006,13 @@ function featuredServicesCarousel() {
     .map(id => serviceById(id))
     .filter(Boolean);
   if (!items.length) return `<div class="empty">Aún no hay servicios destacados.</div>`;
-  return `<div class="featured-svc-track">${items.map(featuredServiceCarouselCard).join('')}</div>`;
+  return `<div class="carousel-shell featured-svc-carousel">
+    <div class="featured-svc-track" data-scroll-track>
+      ${items.map(featuredServiceCarouselCard).join('')}
+    </div>
+    ${items.length > 1 ? `<button class="scroll-nav prev" data-scroll-nav="-1" aria-label="Anteriores">‹</button>
+    <button class="scroll-nav next" data-scroll-nav="1" aria-label="Siguientes">›</button>` : ''}
+  </div>`;
 }
 
 function mediaThumbCard(m, index, listName) {
@@ -2159,6 +2194,11 @@ function homeScreen() {
 
   return `<section class="screen">
     ${brandHeader()}
+    <!-- 0. SALON NAME -->
+    <div class="home-brand">
+      <h1 class="home-brand-name">${esc(c.brand.name || 'BLACK ROCOCO')}</h1>
+    </div>
+
     <div class="hero-intro">
       <div class="gold-rule"></div>
       <div class="tagline">${esc(c.brand.tagline)}</div>
@@ -2191,6 +2231,7 @@ function homeScreen() {
     </div>
     <div class="specialties"><span class="line"></span><div class="eyebrow">ESPECIALISTAS EN<br><span>${esc(c.brand.specialties)}</span></div><span class="line"></span></div>
 
+
     <!-- 2. SERVICES (Featured carousel + all services link) -->
     <div class="section">
       <div class="section-head"><div><div class="title">Servicios destacados</div><div class="subtitle">Los favoritos de nuestras clientas</div></div></div>
@@ -2198,7 +2239,56 @@ function homeScreen() {
       <button class="btn btn-outline" style="margin-top:12px" data-tab="servicios">VER TODOS LOS SERVICIOS</button>
     </div>
 
+
     ${promoBanner()}
+
+
+    <!-- 4. GALLERY -->
+    <div class="section">
+      <div class="section-head"><div class="title">Resultados reales</div><button class="pill-button" data-tab="galeria">VER GALERÍA →</button></div>
+      <div class="carousel-shell">
+        <div class="carousel" data-scroll-track>
+          ${carouselMedia.length
+            ? carouselMedia.map((m, i) => mediaThumbCard(m, i, 'homeCarousel')).join('')
+            : `<div class="image-card"><div class="placeholder">Aún no hay fotos<br>sube fotos reales en Admin → GALERÍA</div></div>`}
+        </div>
+        ${carouselMedia.length > 1 ? `<button class="scroll-nav prev" data-scroll-nav="-1" aria-label="Anterior">‹</button>
+        <button class="scroll-nav next" data-scroll-nav="1" aria-label="Siguiente">›</button>` : ''}
+      </div>
+    </div>
+
+    ${(state.courses || []).length ? `<div class="section"><div class="card promo-card" style="border-color:var(--gold, #b08d57)"><div class="eyebrow">BLACK ROCOCO ACADEMY</div><div class="title" style="font-size:22px;margin:6px 0">Cursos y talleres profesionales</div><div class="subtitle">Certifícate en poligel, manicure ruso y más.</div><button class="btn btn-outline" style="margin-top:14px" data-tab="academia">VER CURSOS</button></div></div>` : ''}
+
+    ${(state.blogPosts || []).length ? `<div class="section">
+      <div class="section-head"><div class="title">Blog</div><button class="pill-button" data-tab="blog">VER TODOS →</button></div>
+      <div class="card-list">
+        ${(state.blogPosts || []).slice(0, 2).map(p => {
+          const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
+          return `<div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}" style="cursor:pointer">
+            <div class="eyebrow">${esc(dateStr)}</div>
+            <div class="title" style="font-size:16px;margin:4px 0">${esc(p.title)}</div>
+            ${p.excerpt ? `<div class="subtitle" style="font-size:13px">${esc(p.excerpt).slice(0, 80)}${p.excerpt.length > 80 ? '…' : ''}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    ${team.length ? `<!-- 3b. TEAM -->
+    <div class="section team-section">
+      <div class="section-head"><div><div class="title">Nuestro Equipo</div><div class="subtitle">Las manos detrás de tus uñas</div></div></div>
+      <div class="team-grid">
+        ${team.map(m => `<div class="team-card">
+          ${m.photoUrl
+            ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}" loading="lazy">`
+            : `<div class="team-photo team-photo-empty">${esc((m.name || '?').charAt(0))}</div>`}
+          <div class="team-name">${esc(m.name)}</div>
+          ${m.role ? `<div class="team-role">${esc(m.role)}</div>` : ''}
+          ${m.bio ? `<p class="team-bio">${esc(m.bio)}</p>` : ''}
+          ${m.instagram ? `<a class="team-ig" href="${esc(m.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+
 
     <!-- 3. ABOUT US (content + images managed in Admin -> CONFIGURACIÓN) -->
     <div class="section about-section">
@@ -2218,47 +2308,6 @@ function homeScreen() {
       </div>
     </div>
 
-    ${team.length ? `<!-- 3b. TEAM -->
-    <div class="section team-section">
-      <div class="section-head"><div><div class="title">Nuestro Equipo</div><div class="subtitle">Las manos detrás de tus uñas</div></div></div>
-      <div class="team-grid">
-        ${team.map(m => `<div class="team-card">
-          ${m.photoUrl
-            ? `<img class="team-photo" src="${esc(m.photoUrl)}" alt="${esc(m.name)}" loading="lazy">`
-            : `<div class="team-photo team-photo-empty">${esc((m.name || '?').charAt(0))}</div>`}
-          <div class="team-name">${esc(m.name)}</div>
-          ${m.role ? `<div class="team-role">${esc(m.role)}</div>` : ''}
-          ${m.bio ? `<p class="team-bio">${esc(m.bio)}</p>` : ''}
-          ${m.instagram ? `<a class="team-ig" href="${esc(m.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}
-        </div>`).join('')}
-      </div>
-    </div>` : ''}
-
-    <!-- 4. GALLERY -->
-    <div class="section">
-      <div class="section-head"><div class="title">Resultados reales</div><button class="pill-button" data-tab="galeria">VER GALERÍA →</button></div>
-      <div class="carousel">
-        ${carouselMedia.length
-          ? carouselMedia.map((m, i) => mediaThumbCard(m, i, 'homeCarousel')).join('')
-          : `<div class="image-card"><div class="placeholder">Aún no hay fotos<br>sube fotos reales en Admin → GALERÍA</div></div>`}
-      </div>
-    </div>
-
-    ${(state.blogPosts || []).length ? `<div class="section">
-      <div class="section-head"><div class="title">Blog</div><button class="pill-button" data-tab="blog">VER TODOS →</button></div>
-      <div class="card-list">
-        ${(state.blogPosts || []).slice(0, 2).map(p => {
-          const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
-          return `<div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}" style="cursor:pointer">
-            <div class="eyebrow">${esc(dateStr)}</div>
-            <div class="title" style="font-size:16px;margin:4px 0">${esc(p.title)}</div>
-            ${p.excerpt ? `<div class="subtitle" style="font-size:13px">${esc(p.excerpt).slice(0, 80)}${p.excerpt.length > 80 ? '…' : ''}</div>` : ''}
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : ''}
-
-    ${(state.courses || []).length ? `<div class="section"><div class="card promo-card" style="border-color:var(--gold, #b08d57)"><div class="eyebrow">BLACK ROCOCO ACADEMY</div><div class="title" style="font-size:22px;margin:6px 0">Cursos y talleres profesionales</div><div class="subtitle">Certifícate en poligel, manicure ruso y más.</div><button class="btn btn-outline" style="margin-top:14px" data-tab="academia">VER CURSOS</button></div></div>` : ''}
 
     <!-- 5. MAP -->
     <div class="section map-section">
@@ -2589,18 +2638,18 @@ function courseById(id) {
   return (state.courses || []).find(c => c.id === id);
 }
 
-function courseImageCarousel(course) {
+/* Course photos use the shared autoCarousel: autoplay, arrows, dots and
+   swipe come free, and it's the same component the hero and services use. */
+function courseImageCarousel(course, opts = {}) {
   const images = Array.isArray(course.imageUrls) ? course.imageUrls.filter(Boolean) : [];
   if (!images.length) return '';
-  const idx = ((state.academia.imageIndex[course.id] || 0) % images.length + images.length) % images.length;
-  return `<div class="carousel-frame">
-    <img src="${esc(images[idx])}" alt="${esc(course.title)}" loading="lazy">
-    ${images.length > 1 ? `
-      <button class="carousel-arrow left" data-carousel-prev="${esc(course.id)}" aria-label="Foto anterior">‹</button>
-      <button class="carousel-arrow right" data-carousel-next="${esc(course.id)}" aria-label="Foto siguiente">›</button>
-      <div class="carousel-dots">${images.map((_, i) => `<span class="dot ${i === idx ? 'active' : ''}"></span>`).join('')}</div>
-    ` : ''}
-  </div>`;
+  return autoCarousel(images, {
+    alt: course.title,
+    arrows: true,
+    counter: images.length > 1,
+    autoplay: opts.autoplay !== false,
+    className: opts.className || 'course-ac'
+  });
 }
 
 function academiaScreen() {
@@ -2704,7 +2753,7 @@ function blogScreen() {
       ${posts.map(p => {
         const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
         return `<div class="section"><div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}">
-          ${p.coverImageUrl ? `<div class="blog-card-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy"></div>` : ''}
+          ${p.coverImageUrl ? `<div class="blog-card-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}"></div>` : ''}
           <div class="blog-card-body">
             <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
             <div class="title" style="font-size:18px;margin:6px 0">${esc(p.title)}</div>
@@ -3821,17 +3870,6 @@ async function disconnectGoogleCalendar() {
   }
 }
 
-async function disconnectGoogleCalendar() {
-  if (!confirm('¿Desconectar Google Calendar? Las citas ya no se bloquearán automáticamente.')) return;
-  try {
-    await api('/api/admin/google-calendar/disconnect', { method: 'POST' });
-    await loadGoogleCalendarStatus();
-  } catch (err) {
-    state.admin.error = err.message;
-    render();
-  }
-}
-
 
 // ===== STAFF (EQUIPO) — admin screen =====
 function adminStaff(data) {
@@ -4338,7 +4376,10 @@ app.addEventListener('click', async event => {
   // Backdrop click: close modal ONLY if the click landed on the backdrop
   // itself, not on anything inside the modal card.
   if (event.target.hasAttribute?.('data-modal-backdrop')) {
+    // Clear every modal — the backdrop is shared by the service and course
+    // modals, so closing only one leaves the other stuck open.
     state.serviceModalId = null;
+    state.courseModalId = null;
     return render();
   }
   // Close buttons: use closest() because the ✕ glyph is a text node inside
@@ -4491,6 +4532,21 @@ app.addEventListener('click', async event => {
   if (target.hasAttribute('data-verify-confirm')) {
     const wa = state.tab === 'academia' ? state.academia.whatsapp : state.booking.whatsapp;
     return confirmVerifyCode(wa);
+  }
+  // One generic handler for every horizontal snap carousel (gallery, promos,
+  // featured services). The button finds its own track, so new carousels work
+  // by markup alone — no extra wiring.
+  const navBtn = target.closest('[data-scroll-nav]');
+  if (navBtn) {
+    const dir = Number(navBtn.dataset.scrollNav);
+    const scope = navBtn.parentElement;
+    const track = scope?.querySelector('[data-scroll-track], [data-promo-track], [data-featured-services-track]');
+    if (!track) return;
+    const card = track.firstElementChild;
+    const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+    const step = card ? card.offsetWidth + gap : track.clientWidth * 0.8;
+    track.scrollBy({ left: dir * step, behavior: 'smooth' });
+    return;
   }
   if (target.hasAttribute('data-confirm-booking')) return createBooking();
   if (target.hasAttribute('data-reset-booking')) {
