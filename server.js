@@ -435,6 +435,14 @@ async function startServer() {
   setTimeout(runReminders, 5000);
   setInterval(runReminders, 10 * 60 * 1000);
 
+  // Birthday greetings: check once an hour. The job itself dedupes so a client
+  // gets at most one greeting per year even across restarts.
+  const runBirthdays = () => notificationsDomain
+    .processBirthdays(salonRef.get() || SALON_ID)
+    .catch(err => logger.error('processBirthdays failed', err));
+  setTimeout(runBirthdays, 8000);
+  setInterval(runBirthdays, 60 * 60 * 1000);
+
   // Last line of defence. A single unhandled throw anywhere must not be able to
   // take the salon's booking site offline. Log loudly and keep serving: a
   // half-broken request is strictly better than a dead process.

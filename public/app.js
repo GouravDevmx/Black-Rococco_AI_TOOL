@@ -357,9 +357,53 @@ function startCarouselTicker() {
   }, CAROUSEL_INTERVAL_MS);
 }
 
+let scrollTrackTicker = null;
+
+/* Horizontal snap carousels (promos, gallery, featured services) auto-advance
+   one card at a time and loop back to the start. Pauses on hover/touch and
+   when off-screen. Respects prefers-reduced-motion. Opt-in via
+   data-scroll-autoplay on the track. */
+function startScrollTrackTicker() {
+  clearInterval(scrollTrackTicker);
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  scrollTrackTicker = setInterval(() => {
+    if (document.hidden) return;
+    document.querySelectorAll('[data-scroll-track][data-scroll-autoplay]').forEach(track => {
+      if (track._paused) return;
+      const r = track.getBoundingClientRect();
+      if (!(r.bottom > 0 && r.top < window.innerHeight && r.width > 0)) return;
+      const card = track.firstElementChild;
+      if (!card || track.children.length < 2) return;
+      const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
+      const step = card.offsetWidth + gap;
+      const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+      track.scrollTo({ left: atEnd ? 0 : track.scrollLeft + step, behavior: 'smooth' });
+    });
+  }, 4000);
+}
+
+/* Pause auto-scroll while the user is interacting with a track. Delegated so
+   it survives re-renders without per-element listener bookkeeping. */
+document.addEventListener('pointerenter', e => {
+  const t = e.target.closest?.('[data-scroll-track]');
+  if (t) t._paused = true;
+}, true);
+document.addEventListener('pointerleave', e => {
+  const t = e.target.closest?.('[data-scroll-track]');
+  if (t) t._paused = false;
+}, true);
+document.addEventListener('touchstart', e => {
+  const t = e.target.closest?.('[data-scroll-track]');
+  if (t) { t._paused = true; clearTimeout(t._resume); }
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  const t = e.target.closest?.('[data-scroll-track]');
+  if (t) { t._resume = setTimeout(() => { t._paused = false; }, 3000); }
+}, { passive: true });
+
 // Coming back to a backgrounded tab shouldn't fast-forward several slides.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) startCarouselTicker();
+  if (!document.hidden) { startCarouselTicker(); startScrollTrackTicker(); }
 });
 
 // Pause while the pointer is over a carousel, so it can't advance out from
@@ -1232,8 +1276,13 @@ async function toggleBlogPublish(id, currentlyPublished) {
 }
 
 async function cycleStatus(id, current) {
-  const order = ['new', 'confirmed', 'in_progress', 'completed'];
+  const order = ['new', 'in_progress', 'paid', 'closed'];
   const next = order[(order.indexOf(current) + 1) % order.length] || 'new';
+  return moveApptStatus(id, next);
+}
+
+async function moveApptStatus(id, next) {
+  if (!id || !next) return;
   try {
     await api(`/api/admin/appointments/${id}/status`, { method: 'PATCH', body: { status: next } });
     await loadAdminDashboard();
@@ -1967,7 +2016,7 @@ function promoBanner() {
 function promoCarousel(promos) {
   const multi = promos.length > 1;
   return `<div class="carousel-shell promo-carousel-wrap">
-    <div class="promo-carousel" data-scroll-track>
+    <div class="promo-carousel" data-scroll-track data-scroll-autoplay>
       ${promos.map(p => `<article class="promo-slide ${p.imageUrl ? 'has-img' : ''}">
         ${p.imageUrl ? `<img class="promo-slide-img" src="${esc(p.imageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}">` : ''}
         <div class="promo-slide-body">
@@ -2007,7 +2056,7 @@ function featuredServicesCarousel() {
     .filter(Boolean);
   if (!items.length) return `<div class="empty">Aún no hay servicios destacados.</div>`;
   return `<div class="carousel-shell featured-svc-carousel">
-    <div class="featured-svc-track" data-scroll-track>
+    <div class="featured-svc-track" data-scroll-track data-scroll-autoplay>
       ${items.map(featuredServiceCarouselCard).join('')}
     </div>
     ${items.length > 1 ? `<button class="scroll-nav prev" data-scroll-nav="-1" aria-label="Anteriores">‹</button>
@@ -2056,8 +2105,8 @@ function lightboxOverlay() {
   const item = lb.items[lb.index];
   if (!item) return '';
   const isVideo = item.kind === 'video';
-  return `<div class="lightbox-overlay" data-close-lightbox data-lightbox-container>
-    <button class="lightbox-close" data-close-lightbox aria-label="Cerrar">✕</button>
+  return `<div class="lightbox-overlay" data-lightbox-container>
+    <button class="lightbox-close" data-lightbox-close-btn aria-label="Cerrar">✕</button>
     ${lb.items.length > 1 ? `
       <button class="lightbox-arrow left" data-lightbox-prev aria-label="Anterior">‹</button>
       <button class="lightbox-arrow right" data-lightbox-next aria-label="Siguiente">›</button>
@@ -2247,7 +2296,7 @@ function homeScreen() {
     <div class="section">
       <div class="section-head"><div class="title">Resultados reales</div><button class="pill-button" data-tab="galeria">VER GALERÍA →</button></div>
       <div class="carousel-shell">
-        <div class="carousel" data-scroll-track>
+        <div class="carousel" data-scroll-track data-scroll-autoplay>
           ${carouselMedia.length
             ? carouselMedia.map((m, i) => mediaThumbCard(m, i, 'homeCarousel')).join('')
             : `<div class="image-card"><div class="placeholder">Aún no hay fotos<br>sube fotos reales en Admin → GALERÍA</div></div>`}
@@ -2445,6 +2494,7 @@ function bookingStepConfirm() {
       <div class="form-field"><label>Nombre</label><input value="${esc(b.name)}" data-field="name" placeholder="Tu nombre"></div>
       <div class="form-field"><label>WhatsApp</label><input value="${esc(b.whatsapp)}" data-field="whatsapp" inputmode="tel" placeholder="33 0000 0000"></div>
     </div>
+    <div class="form-field"><label>Tu cumpleaños <span class="field-hint">(opcional — ¡te consentimos en tu día! 🎂)</span></label><input type="date" value="${esc(b.birthday || '')}" data-field="birthday"></div>
     <div class="form-field"><label>¿Tienes un código de promoción?</label><input value="${esc(b.promoCode)}" data-field="promoCode" placeholder="Opcional, ej. VERANO15" style="text-transform:uppercase"></div>
     <div class="card preference-card">
       <div class="section-head compact-head"><div><div class="title">Perfil de clienta</div><div class="subtitle">Opcional: esto ayuda al salón a recordar tus gustos para próximas visitas.</div></div></div>
@@ -2730,7 +2780,7 @@ function blogScreen() {
       <div class="section">
         <button class="pill-button" data-blog-back>← VOLVER AL BLOG</button>
       </div>
-      ${p.coverImageUrl ? `<div class="blog-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy"></div>` : ''}
+      ${p.coverImageUrl ? `<div class="blog-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}"></div>` : ''}
       <div class="section">
         <div class="blog-detail-header">
           <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
@@ -2943,7 +2993,11 @@ function miCuentaScreen() {
 }
 
 function statusLabel(s) {
-  return { new: 'PENDIENTE DEPÓSITO', confirmed: 'CONFIRMADA', in_progress: 'EN CURSO', completed: 'COMPLETADA', cancelled: 'CANCELADA' }[s] || s;
+  return {
+    new: 'NUEVA', in_progress: 'EN PROCESO', paid: 'PAGADA',
+    closed: 'CERRADA', deleted: 'ELIMINADA',
+    confirmed: 'EN PROCESO', completed: 'CERRADA', cancelled: 'ELIMINADA'
+  }[s] || s;
 }
 
 // =========================================================================
@@ -3373,52 +3427,91 @@ function notificationStatusLabel(status) {
 function adminNotifications(data) {
   const list = data?.notifications || [];
   const i = data?.integrations || {};
-  return `<div class="card-list notifications-list">
+
+  // Booking cards move across status columns; everything else (birthdays,
+  // integration warnings, generic info) shows in a separate feed below.
+  const bookingCards = list.filter(n => n.kind === 'new_booking' && n.status !== 'deleted');
+  const otherFeed = list.filter(n => n.kind !== 'new_booking');
+
+  const COLUMNS = [
+    { key: 'new',         label: 'NUEVAS',      hint: 'Recién reservadas' },
+    { key: 'in_progress', label: 'EN PROCESO',  hint: 'Confirmadas / en curso' },
+    { key: 'paid',        label: 'PAGADAS',     hint: 'Depósito o pago recibido' },
+    { key: 'closed',      label: 'CERRADAS',    hint: 'Servicio completado' }
+  ];
+  const nextStatus = { new: 'in_progress', in_progress: 'paid', paid: 'closed', closed: 'closed' };
+  const prevStatus = { closed: 'paid', paid: 'in_progress', in_progress: 'new', new: 'new' };
+
+  const card = n => {
+    let waUrl = '';
+    if (n.actionUrl) {
+      try { waUrl = JSON.parse(n.actionUrl).whatsapp?.url || ''; } catch (_) { waUrl = ''; }
+    }
+    const ts = new Date(n.createdAt);
+    return `<div class="kanban-card" data-appt-card="${esc(n.appointmentId || '')}">
+      <div class="kanban-card-title">${esc(n.title)}</div>
+      <div class="kanban-card-msg">${esc(n.message)}</div>
+      ${n.reminderNote ? `<div class="kanban-card-note">⏰ ${esc(n.reminderNote)}</div>` : ''}
+      <div class="kanban-card-time">${esc(ts.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
+      <div class="kanban-card-actions">
+        ${n.status !== 'new' ? `<button class="kanban-move" data-move-appt="${esc(n.appointmentId)}" data-to="${prevStatus[n.status]}" title="Retroceder">‹</button>` : '<span></span>'}
+        ${waUrl ? `<a class="kanban-wa" target="_blank" rel="noopener" href="${esc(waUrl)}" title="WhatsApp clienta">💬</a>` : ''}
+        <button class="kanban-del" data-move-appt="${esc(n.appointmentId)}" data-to="deleted" title="Eliminar">🗑</button>
+        ${n.status !== 'closed' ? `<button class="kanban-move fwd" data-move-appt="${esc(n.appointmentId)}" data-to="${nextStatus[n.status]}" title="Avanzar">›</button>` : '<span></span>'}
+      </div>
+    </div>`;
+  };
+
+  return `<div class="notifications-list">
     <div class="card integration-card">
       <div class="section-head compact-head">
-        <div><div class="title">Centro de notificaciones</div><div class="subtitle">Citas, Google Calendar, WhatsApp y recordatorios.</div></div>
-        <div class="pill-row">
-          ${data?.unreadNotifications ? `<button class="pill-button" data-mark-all-notifications>MARCAR LEÍDAS</button>` : ''}
-          ${list.length ? `<button class="pill-button" style="color:var(--red)" data-clear-all-notifications>LIMPIAR TODO</button>` : ''}
-        </div>
+        <div><div class="title">Reservas</div><div class="subtitle">Mueve cada cita por su estado. Una tarjeta por reserva.</div></div>
       </div>
       <div class="integration-grid">
-        <div><b>Google Calendar</b><span>${i.googleCalendarConfigured ? '✓ Conectado' : '⚠ Pendiente configurar'}</span></div>
-        <div><b>WhatsApp Admin</b><span>${i.whatsappAdminConfigured ? '✓ Conectado' : '⚠ Pendiente configurar'}</span></div>
-        <div><b>Recordatorios</b><span>${i.clientReminderConfigured ? `✓ Activo ${esc((i.reminderHours || []).join(', '))} h antes` : '⚠ Pendiente configurar'}</span></div>
+        <div><b>Google Calendar</b><span>${i.googleCalendarConfigured ? '✓ Conectado' : '⚠ Pendiente'}</span></div>
+        <div><b>WhatsApp Admin</b><span>${i.whatsappAdminConfigured ? '✓ Conectado' : '⚠ Pendiente'}</span></div>
+        <div><b>Recordatorios</b><span>${i.clientReminderConfigured ? `✓ Activo` : '⚠ Pendiente'}</span></div>
+        <div><b>Cumpleaños</b><span>${i.birthdayConfigured ? '✓ Activo' : '⚠ Pendiente'}</span></div>
       </div>
     </div>
-    ${list.length ? list.map(n => {
-      let actions = '';
-      if (n.actionLabel === 'multi' && n.actionUrl) {
-        try {
-          const multi = JSON.parse(n.actionUrl);
-          if (multi.whatsapp?.url) actions += `<a class="mini-action" target="_blank" rel="noopener" href="${esc(multi.whatsapp.url)}">${esc(multi.whatsapp.label)}</a>`;
-          if (multi.calendar?.url) actions += `<a class="mini-action" target="_blank" rel="noopener" href="${esc(multi.calendar.url)}">${esc(multi.calendar.label)}</a>`;
-          if (multi.agenda) actions += `<button class="mini-action" data-admin-tab="agenda">Ver agenda</button>`;
-        } catch (_) {
-          if (n.actionUrl) actions = `<a class="mini-action" target="_blank" rel="noopener" href="${esc(n.actionUrl)}">${esc(n.actionLabel || 'Abrir')}</a>`;
-        }
-      } else if (n.actionUrl) {
-        actions = `<a class="mini-action" target="_blank" rel="noopener" href="${esc(n.actionUrl)}">${esc(n.actionLabel || 'Abrir')}</a>`;
-      }
+
+    <div class="kanban-board">
+      ${COLUMNS.map(col => {
+        const cards = bookingCards.filter(n => n.status === col.key);
+        return `<div class="kanban-col">
+          <div class="kanban-col-head">
+            <span class="kanban-col-label ${col.key}">${col.label}</span>
+            <span class="kanban-col-count">${cards.length}</span>
+          </div>
+          <div class="kanban-col-body">
+            ${cards.length ? cards.map(card).join('') : `<div class="kanban-empty">—</div>`}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    ${bookingCards.length === 0 ? `<div class="empty">No hay reservas activas.</div>` : ''}
+
+    <div class="card integration-card" style="margin-top:16px">
+      <div class="section-head compact-head">
+        <div><div class="title">Actividad</div><div class="subtitle">Cumpleaños, avisos y sistema.</div></div>
+        ${otherFeed.length ? `<button class="pill-button" style="color:var(--red)" data-clear-all-notifications>LIMPIAR</button>` : ''}
+      </div>
+    </div>
+    ${otherFeed.length ? `<div class="card-list">${otherFeed.map(n => {
+      const action = n.actionUrl && n.actionLabel && n.actionLabel !== 'multi'
+        ? `<a class="mini-action" target="_blank" rel="noopener" href="${esc(n.actionUrl)}">${esc(n.actionLabel)}</a>` : '';
       const ts = new Date(n.createdAt);
-      const timeAgo = formatTimeAgo(ts);
       return `<div class="notification-row ${n.unread ? 'unread' : ''}">
-        <div class="notification-top">
-          <div class="notif-title">${esc(n.title)}</div>
-          <span class="notify-status ${esc(n.status)}">${esc(notificationStatusLabel(n.status))}</span>
-        </div>
+        <div class="notification-top"><div class="notif-title">${esc(n.title)}</div></div>
         <div class="notif-message">${esc(n.message)}</div>
-        <div class="notif-time">${timeAgo} · ${ts.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+        <div class="notif-time">${esc(formatTimeAgo(ts))}</div>
         <div class="row-actions">
-          ${actions}
-          ${n.unread ? `<button class="mini-action" data-mark-notification="${esc(n.id)}">Marcar leída</button>` : ''}
+          ${action}
           <button class="mini-action notif-delete" data-delete-notification="${esc(n.id)}">Eliminar</button>
         </div>
-        ${n.error ? `<div class="error-box">${esc(n.error)}</div>` : ''}
       </div>`;
-    }).join('') : `<div class="empty">No hay notificaciones todavía.</div>`}
+    }).join('')}</div>` : `<div class="empty">Sin actividad reciente.</div>`}
   </div>`;
 }
 
@@ -4316,6 +4409,7 @@ function render() {
   // shared ticker so freshly-rendered carousels start cycling from now, rather
   // than inheriting the phase of an interval that began before this render.
   startCarouselTicker();
+  startScrollTrackTicker();
   afterRender();
   // Lock body scroll when modal/lightbox/menu is open
   document.body.classList.toggle('modal-open', Boolean(state.serviceModalId || state.lightbox || state.menuOpen));
@@ -4388,7 +4482,14 @@ app.addEventListener('click', async event => {
     state.serviceModalId = null;
     return render();
   }
-  if (event.target.closest('[data-close-lightbox]')) {
+  // Lightbox arrows/counter live INSIDE the overlay. Handle the interactive
+  // controls FIRST (using event.target, since `target` is resolved below),
+  // then only close on a direct overlay/✕ click — otherwise an arrow click
+  // would bubble to the backdrop and close the lightbox mid-navigation.
+  if (event.target.closest('[data-lightbox-next]')) return lightboxNext();
+  if (event.target.closest('[data-lightbox-prev]')) return lightboxPrev();
+  if (event.target.classList?.contains('lightbox-overlay') ||
+      event.target.closest('[data-lightbox-close-btn]')) {
     return closeLightbox();
   }
   if (event.target.closest('[data-close-menu]') || event.target.classList?.contains('side-menu-overlay')) {
@@ -4467,8 +4568,6 @@ app.addEventListener('click', async event => {
     const list = target.dataset.lightboxList === 'homeCarousel' ? state.homeCarouselCache : state.galleryFilteredCache;
     return openLightbox(list || [], Number(target.dataset.openLightbox));
   }
-  if (target.hasAttribute('data-lightbox-next')) return lightboxNext();
-  if (target.hasAttribute('data-lightbox-prev')) return lightboxPrev();
   if (target.dataset.galleryFilter !== undefined) {
     state.galleryFilter = target.dataset.galleryFilter;
     state.galleryVisibleCount = 9;
@@ -4733,6 +4832,7 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.dataset.cycleStatus) return cycleStatus(target.dataset.cycleStatus, target.dataset.currentStatus);
+  if (target.dataset.moveAppt) return moveApptStatus(target.dataset.moveAppt, target.dataset.to);
   if (target.dataset.priceStep) {
     const id = target.dataset.priceStep;
     const service = state.admin.data.services.find(s => s.id === id);

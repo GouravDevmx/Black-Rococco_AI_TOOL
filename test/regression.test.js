@@ -216,14 +216,14 @@ const ymd = d => {
     ok(`VALIDATION rejects ${label} (400)`, rr.status === 400);
   }
 
-  r = await req('PATCH', `/api/admin/appointments/${appt.id}/status`, { status: 'confirmed' });
-  ok('BOOKING status -> confirmed', r.status === 200);
-  r = await req('PATCH', `/api/admin/appointments/${appt.id}/status`, { status: 'cancelled' });
-  ok('CANCEL booking 200', r.status === 200);
+  r = await req('PATCH', `/api/admin/appointments/${appt.id}/status`, { status: 'in_progress' });
+  ok('BOOKING status -> in_progress', r.status === 200);
+  r = await req('PATCH', `/api/admin/appointments/${appt.id}/status`, { status: 'deleted' });
+  ok('DELETE booking 200', r.status === 200);
 
   r = await req('GET', `/api/availability?date=${date}&serviceId=${svc.id}`);
   const slot1 = r.data.slots.find(s => s.time === T1);
-  ok('CANCEL frees the slot', slot1 && slot1.busy === false);
+  ok('DELETE frees the slot', slot1 && slot1.busy === false);
 
   r = await req('POST', '/api/bookings', {
     serviceId: svc.id, date, time: T1, name: 'Rebook Test', whatsapp: '3331110004'
