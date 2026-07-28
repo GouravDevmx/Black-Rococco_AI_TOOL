@@ -129,17 +129,17 @@
     }
   },
   "counters": {
-    "appointment": 1088,
+    "appointment": 1092,
     "client": 1015,
     "post": 1000,
-    "notification": 1119,
-    "promotion": 1028,
-    "course": 1021,
-    "registration": 1020,
-    "service": 1021,
-    "media": 1038,
-    "staff": 1020,
-    "clientPhoto": 1020,
+    "notification": 1124,
+    "promotion": 1032,
+    "course": 1022,
+    "registration": 1021,
+    "service": 1022,
+    "media": 1040,
+    "staff": 1021,
+    "clientPhoto": 1021,
     "clientAccount": 1001,
     "blogPost": 1001,
     "chatMessage": 1010
@@ -435,7 +435,7 @@
       "notes": "NOTES-REG",
       "allergies": "ALG-REG",
       "createdAt": "2026-07-14T01:39:03.735Z",
-      "updatedAt": "2026-07-28T06:15:28.668Z",
+      "updatedAt": "2026-07-28T06:26:20.005Z",
       "depositOnFile": false,
       "lastBirthdayGreetedYear": null
     },
@@ -453,7 +453,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.755Z",
-      "updatedAt": "2026-07-28T06:15:28.508Z",
+      "updatedAt": "2026-07-28T06:26:19.852Z",
       "depositOnFile": false,
       "lastBirthdayGreetedYear": null
     },
@@ -471,7 +471,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.816Z",
-      "updatedAt": "2026-07-28T06:15:28.535Z",
+      "updatedAt": "2026-07-28T06:26:19.880Z",
       "depositOnFile": false,
       "lastBirthdayGreetedYear": null
     },
@@ -489,7 +489,7 @@
       "notes": "",
       "allergies": "",
       "createdAt": "2026-07-14T01:39:03.829Z",
-      "updatedAt": "2026-07-28T06:15:28.557Z",
+      "updatedAt": "2026-07-28T06:26:19.902Z",
       "depositOnFile": false,
       "lastBirthdayGreetedYear": null
     }
@@ -2780,6 +2780,102 @@
       },
       "remindersSent": {},
       "createdAt": "2026-07-28T06:15:28.557Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1089",
+      "folio": "BR-1089",
+      "clientId": "cli_1008",
+      "serviceId": "svc_1022",
+      "date": "2026-08-05",
+      "time": "13:00",
+      "status": "deleted",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "Rojo",
+        "drinkChoice": "Café",
+        "timePreference": "",
+        "notes": "NOTES-REG",
+        "allergies": "ALG-REG"
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-28T06:26:19.835Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1090",
+      "folio": "BR-1090",
+      "clientId": "cli_1009",
+      "serviceId": "svc_1022",
+      "date": "2026-08-05",
+      "time": "16:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-28T06:26:19.852Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1091",
+      "folio": "BR-1091",
+      "clientId": "cli_1010",
+      "serviceId": "svc_1022",
+      "date": "2026-08-05",
+      "time": "13:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 500,
+      "appliedPromotion": null,
+      "remindersSent": {},
+      "createdAt": "2026-07-28T06:26:19.880Z",
+      "googleEventId": null
+    },
+    {
+      "id": "apt_1092",
+      "folio": "BR-1092",
+      "clientId": "cli_1011",
+      "serviceId": "svc_1022",
+      "date": "2026-08-05",
+      "time": "17:00",
+      "status": "new",
+      "preferencesSnapshot": {
+        "styleChoice": "",
+        "colorChoice": "",
+        "drinkChoice": "",
+        "timePreference": "",
+        "notes": "",
+        "allergies": ""
+      },
+      "finalPrice": 400,
+      "appliedPromotion": {
+        "id": "promo_1032",
+        "code": "",
+        "label": "REG20",
+        "type": "percent",
+        "value": 20,
+        "discountAmount": 100,
+        "originalPrice": 500
+      },
+      "remindersSent": {},
+      "createdAt": "2026-07-28T06:26:19.902Z",
       "googleEventId": null
     }
   ],

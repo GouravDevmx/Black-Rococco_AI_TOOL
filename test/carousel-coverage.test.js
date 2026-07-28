@@ -36,7 +36,8 @@ ok('scroll-track nav handler wired', /data-scroll-nav/.test(src));
 
 // Tickers must be cleared before restart (no interval leak on re-render).
 ok('vertical ticker cleared before restart', /clearInterval\(carouselTicker\)/.test(src));
-ok('horizontal ticker cleared before restart', /clearInterval\(scrollTrackTicker\)/.test(src));
+ok('horizontal drift cancelled before restart', /cancelAnimationFrame\(scrollTrackRAF\)/.test(src));
+ok('horizontal drift is smooth (RAF, not interval jumps)', /requestAnimationFrame/.test(src) && /is-auto-drifting/.test(src));
 
 console.log('\n' + (fail === 0 ? 'PASS' : 'FAIL') + ': ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail === 0 ? 0 : 1);

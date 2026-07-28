@@ -3520,3 +3520,12 @@ img[data-failed]::after {
 .kanban-card-actions span { width: 30px; }
 
 .field-hint { font-weight: 400; color: var(--muted); font-size: 11px; }
+
+/* While a track is auto-drifting we turn OFF scroll-snap, otherwise the
+   browser yanks the position to the nearest snap point every frame and the
+   smooth marquee motion turns back into a stutter. Snap returns the moment
+   the user takes over (the class is removed on pause / manual scroll). */
+[data-scroll-track].is-auto-drifting {
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}

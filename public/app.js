@@ -357,29 +357,53 @@ function startCarouselTicker() {
   }, CAROUSEL_INTERVAL_MS);
 }
 
-let scrollTrackTicker = null;
+let scrollTrackRAF = null;
+let scrollTrackLast = 0;
 
-/* Horizontal snap carousels (promos, gallery, featured services) auto-advance
-   one card at a time and loop back to the start. Pauses on hover/touch and
-   when off-screen. Respects prefers-reduced-motion. Opt-in via
-   data-scroll-autoplay on the track. */
+/* Horizontal snap carousels (promos, gallery, featured services) drift
+   continuously to the left at a slow, constant speed — like a marquee — rather
+   than jumping one card every few seconds (which read as a "clock tick").
+   Movement is per-animation-frame and time-based, so it's smooth and stays
+   consistent regardless of frame rate. Pauses on hover/touch, when off-screen,
+   in background tabs, and under prefers-reduced-motion. Loops seamlessly:
+   at the end it eases back to the start instead of hard-snapping. */
+const SCROLL_SPEED_PX_PER_SEC = 28; // gentle, readable drift
+
 function startScrollTrackTicker() {
-  clearInterval(scrollTrackTicker);
+  cancelAnimationFrame(scrollTrackRAF);
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  scrollTrackTicker = setInterval(() => {
-    if (document.hidden) return;
-    document.querySelectorAll('[data-scroll-track][data-scroll-autoplay]').forEach(track => {
-      if (track._paused) return;
-      const r = track.getBoundingClientRect();
-      if (!(r.bottom > 0 && r.top < window.innerHeight && r.width > 0)) return;
-      const card = track.firstElementChild;
-      if (!card || track.children.length < 2) return;
-      const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 0;
-      const step = card.offsetWidth + gap;
-      const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-      track.scrollTo({ left: atEnd ? 0 : track.scrollLeft + step, behavior: 'smooth' });
-    });
-  }, 4000);
+  scrollTrackLast = 0;
+  const frame = (now) => {
+    if (!scrollTrackLast) scrollTrackLast = now;
+    const dt = Math.min((now - scrollTrackLast) / 1000, 0.05); // clamp big gaps (tab switch)
+    scrollTrackLast = now;
+    if (!document.hidden) {
+      document.querySelectorAll('[data-scroll-track][data-scroll-autoplay]').forEach(track => {
+        if (track._paused || track._userScrolling) return track.classList.remove('is-auto-drifting');
+        if (track.children.length < 2) return;
+        const r = track.getBoundingClientRect();
+        if (!(r.bottom > 0 && r.top < window.innerHeight && r.width > 0)) return;
+        const maxScroll = track.scrollWidth - track.clientWidth;
+        if (maxScroll <= 1) return;
+        let next = track.scrollLeft + SCROLL_SPEED_PX_PER_SEC * dt;
+        if (next >= maxScroll - 0.5) {
+          // Seamless wrap: hold a beat at the end, then glide back to start.
+          if (!track._wrapWait) { track._wrapWait = now; next = maxScroll; }
+          else if (now - track._wrapWait > 900) { next = 0; track._wrapWait = 0; }
+          else next = maxScroll;
+        } else {
+          track._wrapWait = 0;
+        }
+        // Direct assignment (not scrollTo+smooth) — the smoothness comes from
+        // moving a tiny amount every frame, not from the browser's animation.
+        track.classList.add('is-auto-drifting'); // CSS disables scroll-snap while this is set
+        track._autoScrolling = true;
+        track.scrollLeft = next;
+      });
+    }
+    scrollTrackRAF = requestAnimationFrame(frame);
+  };
+  scrollTrackRAF = requestAnimationFrame(frame);
 }
 
 /* Pause auto-scroll while the user is interacting with a track. Delegated so
@@ -400,6 +424,18 @@ document.addEventListener('touchend', e => {
   const t = e.target.closest?.('[data-scroll-track]');
   if (t) { t._resume = setTimeout(() => { t._paused = false; }, 3000); }
 }, { passive: true });
+
+/* When the user scrolls a track by hand (wheel, drag, arrow buttons), stop the
+   auto-drift briefly and let CSS scroll-snap settle the position. Without this,
+   the drift would fight the user for control of the same scroll position. */
+document.addEventListener('scroll', e => {
+  const t = e.target.closest?.('[data-scroll-track][data-scroll-autoplay]');
+  if (!t) return;
+  if (t._autoScrolling) { t._autoScrolling = false; return; } // our own move, ignore
+  t._userScrolling = true;
+  clearTimeout(t._userScrollTimer);
+  t._userScrollTimer = setTimeout(() => { t._userScrolling = false; }, 2500);
+}, true);
 
 // Coming back to a backgrounded tab shouldn't fast-forward several slides.
 document.addEventListener('visibilitychange', () => {
