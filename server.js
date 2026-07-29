@@ -119,19 +119,20 @@ async function handleApi(req, res, pathname, url) {
     // loudly in the regression suite rather than silently returning [] — which,
     // for `appointments`, would advertise every booked slot as free.
     if (req.method === 'GET' && pathname === '/api/availability') {
-      // Needs the service (for duration) and existing appointments (for overlap).
-      const db = await readDb(salonId, ['services', 'appointments']);
+      // Needs the service (duration + area), existing appointments (overlap)
+      // and staff (how many specialists cover that area = slot capacity).
+      const db = await readDb(salonId, ['services', 'appointments', 'staff']);
       if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
     }
     if (req.method === 'GET' && pathname === '/api/rebook') {
-      const db = await readDb(salonId, ['clients', 'appointments', 'services']);
+      const db = await readDb(salonId, ['clients', 'appointments', 'services', 'staff']);
       if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
     }
     if (req.method === 'POST' && pathname === '/api/bookings') {
       // The booking workflow touches the most: service, slot, client, promo,
       // and it writes a notification.
       const db = await readDb(salonId, [
-        'services', 'appointments', 'clients', 'promotions', 'notifications'
+        'services', 'appointments', 'clients', 'promotions', 'notifications', 'staff'
       ]);
       if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
     }

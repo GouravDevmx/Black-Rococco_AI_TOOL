@@ -75,6 +75,8 @@ create table if not exists services (
   image_url text not null default '',
   image_urls jsonb not null default '[]'::jsonb,
   active boolean not null default true,
+  -- which specialist performs this service: 'hands' | 'feet' | 'both'
+  area text not null default 'hands',
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -101,6 +103,10 @@ create table if not exists appointments (
   applied_promotion jsonb,
   reminders_sent jsonb not null default '{}'::jsonb,
   google_event_id text,
+  -- which specialist performs this appointment (null = unassigned)
+  staff_id uuid,
+  -- bookings placed together (manicure + pedicure in one order) share this id
+  group_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

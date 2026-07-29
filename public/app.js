@@ -57,6 +57,7 @@ const state = {
     password: '',
     tab: 'agenda',
     selectedClientId: null,
+    notifFilter: 'all',
     editingPromoId: null,
     editingCourseId: null,
     editingServiceId: null,
@@ -385,20 +386,31 @@ function startScrollTrackTicker() {
         if (!(r.bottom > 0 && r.top < window.innerHeight && r.width > 0)) return;
         const maxScroll = track.scrollWidth - track.clientWidth;
         if (maxScroll <= 1) return;
-        let next = track.scrollLeft + SCROLL_SPEED_PX_PER_SEC * dt;
-        if (next >= maxScroll - 0.5) {
+
+        /* CRITICAL: accumulate the position in our OWN float.
+           At 60fps this drift moves ~0.47px per frame, and browsers round
+           element.scrollLeft to whole (device) pixels. Reading scrollLeft back
+           and adding a sub-pixel delta therefore rounds to the SAME value every
+           frame and the carousel never moves. (jsdom doesn't round, which is why
+           this passed tests but froze in real browsers.) Keeping the authoritative
+           position in _driftPos and only writing it out fixes that. */
+        if (track._driftPos === undefined) track._driftPos = track.scrollLeft || 0;
+        track._driftPos += SCROLL_SPEED_PX_PER_SEC * dt;
+
+        if (track._driftPos >= maxScroll - 0.5) {
           // Seamless wrap: hold a beat at the end, then glide back to start.
-          if (!track._wrapWait) { track._wrapWait = now; next = maxScroll; }
-          else if (now - track._wrapWait > 900) { next = 0; track._wrapWait = 0; }
-          else next = maxScroll;
+          if (!track._wrapWait) { track._wrapWait = now; track._driftPos = maxScroll; }
+          else if (now - track._wrapWait > 900) { track._driftPos = 0; track._wrapWait = 0; }
+          else track._driftPos = maxScroll;
         } else {
           track._wrapWait = 0;
         }
-        // Direct assignment (not scrollTo+smooth) — the smoothness comes from
-        // moving a tiny amount every frame, not from the browser's animation.
+
         track.classList.add('is-auto-drifting'); // CSS disables scroll-snap while this is set
-        track._autoScrolling = true;
-        track.scrollLeft = next;
+        track.scrollLeft = track._driftPos;
+        // Remember what we wrote so the scroll listener can tell our own
+        // movement apart from the user's without a fragile flag/race.
+        track._lastAutoScrollLeft = track.scrollLeft;
       });
     }
     scrollTrackRAF = requestAnimationFrame(frame);
@@ -426,13 +438,21 @@ document.addEventListener('touchend', e => {
 }, { passive: true });
 
 /* When the user scrolls a track by hand (wheel, drag, arrow buttons), stop the
-   auto-drift briefly and let CSS scroll-snap settle the position. Without this,
-   the drift would fight the user for control of the same scroll position. */
+   auto-drift briefly and let CSS scroll-snap settle the position. We tell our
+   own drift-writes apart from the user by comparing against the exact position
+   the drift last wrote: if the current position is close to that, it's us;
+   otherwise a human moved it. This avoids the flag-timing race that could
+   permanently freeze the drift. */
 document.addEventListener('scroll', e => {
   const t = e.target.closest?.('[data-scroll-track][data-scroll-autoplay]');
   if (!t) return;
-  if (t._autoScrolling) { t._autoScrolling = false; return; } // our own move, ignore
+  const drift = t._lastAutoScrollLeft;
+  // Within ~2px of what the drift wrote → this scroll event is our own movement.
+  if (drift !== undefined && Math.abs(t.scrollLeft - drift) < 2) return;
   t._userScrolling = true;
+  // Resync our float accumulator to wherever the user left it, otherwise the
+  // drift would snap back to its own stale position when it resumes.
+  t._driftPos = t.scrollLeft;
   clearTimeout(t._userScrollTimer);
   t._userScrollTimer = setTimeout(() => { t._userScrolling = false; }, 2500);
 }, true);
@@ -848,49 +868,22 @@ async function checkClientSession() {
   }
 }
 
-function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-function sendOtpViaWhatsApp() {
-  const ca = state.clientAuth;
-  if (!ca.regName || ca.regName.trim().length < 2) { ca.error = 'Escribe tu nombre.'; render(); return; }
-  const wp = ca.regWhatsapp.replace(/\D/g, '');
-  if (wp.length < 8) { ca.error = 'WhatsApp inválido.'; render(); return; }
-  if ((ca.regPassword || '').length < 6) { ca.error = 'La contraseña debe tener al menos 6 caracteres.'; render(); return; }
-  ca.error = '';
-  const code = generateOtp();
-  ca.otpSent = code;
-  ca.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 min
-  ca.showForm = 'verify';
-  // Open WhatsApp with the verification code pre-filled for the user to send to themselves
-  const fullNum = wp.startsWith('52') ? wp : '52' + wp;
-  const msg = encodeURIComponent(`Mi código de verificación Black Rococo es: ${code}`);
-  window.open(`https://api.whatsapp.com/send/?phone=${fullNum}&text=${msg}`, '_blank');
-  render();
-}
-
-function verifyOtpAndRegister() {
-  const ca = state.clientAuth;
-  if (!ca.otpCode || ca.otpCode.trim() !== ca.otpSent) {
-    ca.error = 'El código no coincide. Revisa tu WhatsApp.';
-    render();
-    return;
-  }
-  if (Date.now() > ca.otpExpiry) {
-    ca.error = 'El código expiró. Vuelve a intentar.';
-    ca.showForm = 'register';
-    ca.otpSent = '';
-    ca.otpCode = '';
-    render();
-    return;
-  }
-  // Code matches — proceed with registration
-  clientRegister();
-}
-
+/* One-step registration. The previous flow bounced the user out to WhatsApp to
+   send themselves a code that was generated in client-side JS — visible in
+   devtools, so it verified nothing while costing us most signups. The server
+   never required it. Validate inline and create the account directly. */
 async function clientRegister() {
   const ca = state.clientAuth;
+  // Friendly inline validation before hitting the network.
+  if (!ca.regName || ca.regName.trim().length < 2) {
+    ca.error = 'Escribe tu nombre para continuar.'; render(); return;
+  }
+  if (ca.regWhatsapp.replace(/\D/g, '').length < 10) {
+    ca.error = 'Escribe tu WhatsApp a 10 dígitos.'; render(); return;
+  }
+  if ((ca.regPassword || '').length < 6) {
+    ca.error = 'Tu contraseña necesita al menos 6 caracteres.'; render(); return;
+  }
   ca.error = '';
   ca.loading = true;
   render();
@@ -1312,7 +1305,7 @@ async function toggleBlogPublish(id, currentlyPublished) {
 }
 
 async function cycleStatus(id, current) {
-  const order = ['new', 'in_progress', 'paid', 'closed'];
+  const order = ['new', 'in_progress', 'pending_payment', 'confirmed', 'closed'];
   const next = order[(order.indexOf(current) + 1) % order.length] || 'new';
   return moveApptStatus(id, next);
 }
@@ -2631,10 +2624,15 @@ function bookingSuccess() {
         <div class="eyebrow">CITA APARTADA</div>
         <div class="folio">${esc(a.folio)}</div>
         <div class="subtitle">${esc(a.serviceName)}<br>${esc(a.date)} · ${esc(a.time)}</div>
-        ${a.status === 'new' ? `<div class="card deposit-notice" style="margin:14px 0">
-          <div class="eyebrow">⏳ PENDIENTE DE DEPÓSITO</div>
-          <div class="subtitle" style="margin-top:6px">Tu lugar queda apartado y se <b>confirma al recibir tu depósito</b>. Escríbenos por WhatsApp y te compartimos los datos para realizarlo.</div>
-        </div>` : a.status === 'confirmed' ? `<div class="card deposit-notice deposit-ok" style="margin:14px 0"><div class="eyebrow">✓ CITA CONFIRMADA</div><div class="subtitle" style="margin-top:6px">Tienes depósito en garantía — tu cita quedó confirmada al instante.</div></div>` : ''}
+        ${a.status === 'confirmed'
+          ? `<div class="card deposit-notice deposit-ok" style="margin:14px 0">
+              <div class="eyebrow">✓ CITA CONFIRMADA</div>
+              <div class="subtitle" style="margin-top:6px">Tienes depósito en garantía — tu cita quedó confirmada al instante. ¡Te esperamos!</div>
+            </div>`
+          : `<div class="card deposit-notice" style="margin:14px 0">
+              <div class="eyebrow">⏳ APARTADA — TE CONFIRMAMOS EN BREVE</div>
+              <div class="subtitle" style="margin-top:6px">Tu lugar está reservado. Te escribimos por WhatsApp para <b>confirmar tu cita</b> y compartirte los datos del depósito.</div>
+            </div>`}
         ${a.appliedPromotion ? `<div class="card promo-card" style="margin:14px 0"><div class="eyebrow">${esc(a.appliedPromotion.label || 'PROMOCIÓN APLICADA')}</div><div class="subtitle">Precio original ${money(a.originalServicePrice)} → pagas ${money(a.servicePrice)}</div></div>` : `<div class="subtitle" style="margin:10px 0">Total: ${money(a.servicePrice)}</div>`}
         <p class="subtitle" style="margin:18px 0">${esc(data.note)}</p>
         <div class="success-actions">
@@ -2991,35 +2989,23 @@ function miCuentaScreen() {
 
     ${form === 'register' ? `<div class="section">
       <div class="card">
-        <div class="title" style="font-size:20px;margin-bottom:14px">Crear cuenta</div>
+        <div class="title" style="font-size:20px;margin-bottom:4px">Crear cuenta</div>
+        <div class="subtitle" style="margin-bottom:14px">Solo toma 20 segundos. Guardamos tus citas y preferencias para que reservar sea de un toque.</div>
         ${ca.error ? `<div class="error-box">${esc(ca.error)}</div>` : ''}
-        <div class="form-field"><label>Nombre</label><input data-client-auth-field="regName" value="${esc(ca.regName)}" placeholder="Tu nombre"></div>
-        <div class="form-field"><label>WhatsApp</label><input data-client-auth-field="regWhatsapp" value="${esc(ca.regWhatsapp)}" inputmode="tel" placeholder="33 0000 0000"></div>
-        <div class="form-field"><label>Email (opcional)</label><input type="email" data-client-auth-field="regEmail" value="${esc(ca.regEmail)}" placeholder="tu@email.com"></div>
-        <div class="form-field"><label>Contraseña (mín. 6 caracteres)</label><input type="password" data-client-auth-field="regPassword" value="${esc(ca.regPassword)}" placeholder="Tu contraseña"></div>
-        <div class="subtitle" style="font-size:11px;margin:4px 0 12px;color:var(--muted)">Te enviaremos un código de verificación por WhatsApp para confirmar tu número.</div>
-        <button class="btn btn-primary" data-client-send-otp>VERIFICAR MI WHATSAPP</button>
+        <div class="form-field"><label>Nombre</label><input data-client-auth-field="regName" value="${esc(ca.regName)}" placeholder="Tu nombre" autocomplete="name"></div>
+        <div class="form-field"><label>WhatsApp</label><input data-client-auth-field="regWhatsapp" value="${esc(ca.regWhatsapp)}" inputmode="tel" placeholder="33 0000 0000" autocomplete="tel"></div>
+        <div class="form-field"><label>Contraseña <span class="field-hint">(mín. 6 caracteres)</span></label><input type="password" data-client-auth-field="regPassword" value="${esc(ca.regPassword)}" placeholder="Crea una contraseña" autocomplete="new-password"></div>
+        <button class="btn btn-primary" data-client-register ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'CREANDO...' : 'CREAR MI CUENTA'}</button>
+        <div class="auth-benefits">
+          <span>✓ Reserva más rápido</span>
+          <span>✓ Historial de tus citas</span>
+          <span>✓ Recordatorios por WhatsApp</span>
+        </div>
         <div style="margin-top:14px;text-align:center">
           <button class="pill-button" data-show-client-form="login">¿Ya tienes cuenta? Inicia sesión</button>
         </div>
         <div style="margin-top:8px;text-align:center">
           <button class="pill-button" data-show-client-form="">← Volver</button>
-        </div>
-      </div>
-    </div>` : ''}
-
-    ${form === 'verify' ? `<div class="section">
-      <div class="card">
-        <div class="title" style="font-size:20px;margin-bottom:10px">Verificar WhatsApp</div>
-        <div class="subtitle" style="margin-bottom:14px">Acabamos de abrir WhatsApp con tu código. Envía el mensaje y luego escribe el código de 6 dígitos aquí:</div>
-        ${ca.error ? `<div class="error-box">${esc(ca.error)}</div>` : ''}
-        <div class="form-field"><label>Código de verificación</label><input data-client-auth-field="otpCode" value="${esc(ca.otpCode)}" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;font-size:24px;letter-spacing:8px"></div>
-        <button class="btn btn-primary" data-client-verify-otp ${ca.loading ? 'disabled' : ''}>${ca.loading ? 'VERIFICANDO...' : 'VERIFICAR Y CREAR CUENTA'}</button>
-        <div style="margin-top:14px;text-align:center">
-          <button class="pill-button" data-client-resend-otp>REENVIAR CÓDIGO</button>
-        </div>
-        <div style="margin-top:8px;text-align:center">
-          <button class="pill-button" data-show-client-form="register">← Cambiar datos</button>
         </div>
       </div>
     </div>` : ''}
@@ -3030,9 +3016,9 @@ function miCuentaScreen() {
 
 function statusLabel(s) {
   return {
-    new: 'NUEVA', in_progress: 'EN PROCESO', paid: 'PAGADA',
-    closed: 'CERRADA', deleted: 'ELIMINADA',
-    confirmed: 'EN PROCESO', completed: 'CERRADA', cancelled: 'ELIMINADA'
+    new: 'NUEVA', in_progress: 'EN PROCESO', pending_payment: 'PAGO PENDIENTE',
+    confirmed: 'CONFIRMADA', closed: 'CERRADA', deleted: 'ELIMINADA',
+    paid: 'CONFIRMADA', completed: 'CERRADA', cancelled: 'ELIMINADA'
   }[s] || s;
 }
 
@@ -3464,90 +3450,109 @@ function adminNotifications(data) {
   const list = data?.notifications || [];
   const i = data?.integrations || {};
 
-  // Booking cards move across status columns; everything else (birthdays,
-  // integration warnings, generic info) shows in a separate feed below.
-  const bookingCards = list.filter(n => n.kind === 'new_booking' && n.status !== 'deleted');
+  // Booking cards carry a workflow status; everything else (birthdays,
+  // integration warnings) is informational and lives in a separate feed.
+  const bookings = list.filter(n => n.kind === 'new_booking' && n.status !== 'deleted');
   const otherFeed = list.filter(n => n.kind !== 'new_booking');
 
-  const COLUMNS = [
-    { key: 'new',         label: 'NUEVAS',      hint: 'Recién reservadas' },
-    { key: 'in_progress', label: 'EN PROCESO',  hint: 'Confirmadas / en curso' },
-    { key: 'paid',        label: 'PAGADAS',     hint: 'Depósito o pago recibido' },
-    { key: 'closed',      label: 'CERRADAS',    hint: 'Servicio completado' }
+  const STAGES = [
+    { key: 'new',             label: 'Nuevas',    icon: '●' },
+    { key: 'in_progress',     label: 'En proceso',icon: '◐' },
+    { key: 'pending_payment', label: 'Por pagar', icon: '$' },
+    { key: 'confirmed',       label: 'Confirmadas', icon: '✓' },
+    { key: 'closed',          label: 'Cerradas',  icon: '✓✓' }
   ];
-  const nextStatus = { new: 'in_progress', in_progress: 'paid', paid: 'closed', closed: 'closed' };
-  const prevStatus = { closed: 'paid', paid: 'in_progress', in_progress: 'new', new: 'new' };
+  const nextOf = { new: 'in_progress', in_progress: 'pending_payment', pending_payment: 'confirmed', confirmed: 'closed', closed: null };
+  const prevOf = { new: null, in_progress: 'new', pending_payment: 'in_progress', confirmed: 'pending_payment', closed: 'confirmed' };
+
+  const filter = state.admin.notifFilter || 'all';
+  const shown = filter === 'all' ? bookings : bookings.filter(n => n.status === filter);
+  const countFor = k => bookings.filter(n => n.status === k).length;
 
   const card = n => {
     let waUrl = '';
-    if (n.actionUrl) {
-      try { waUrl = JSON.parse(n.actionUrl).whatsapp?.url || ''; } catch (_) { waUrl = ''; }
-    }
-    const ts = new Date(n.createdAt);
-    return `<div class="kanban-card" data-appt-card="${esc(n.appointmentId || '')}">
-      <div class="kanban-card-title">${esc(n.title)}</div>
-      <div class="kanban-card-msg">${esc(n.message)}</div>
-      ${n.reminderNote ? `<div class="kanban-card-note">⏰ ${esc(n.reminderNote)}</div>` : ''}
-      <div class="kanban-card-time">${esc(ts.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}</div>
-      <div class="kanban-card-actions">
-        ${n.status !== 'new' ? `<button class="kanban-move" data-move-appt="${esc(n.appointmentId)}" data-to="${prevStatus[n.status]}" title="Retroceder">‹</button>` : '<span></span>'}
-        ${waUrl ? `<a class="kanban-wa" target="_blank" rel="noopener" href="${esc(waUrl)}" title="WhatsApp clienta">💬</a>` : ''}
-        <button class="kanban-del" data-move-appt="${esc(n.appointmentId)}" data-to="deleted" title="Eliminar">🗑</button>
-        ${n.status !== 'closed' ? `<button class="kanban-move fwd" data-move-appt="${esc(n.appointmentId)}" data-to="${nextStatus[n.status]}" title="Avanzar">›</button>` : '<span></span>'}
+    try { waUrl = n.actionUrl ? (JSON.parse(n.actionUrl).whatsapp?.url || '') : ''; } catch (_) {}
+    const nxt = nextOf[n.status];
+    const prv = prevOf[n.status];
+    // message is "Name · Service · date time" — split for a cleaner layout
+    const parts = String(n.message || '').split(' · ');
+    const who = parts[0] || n.title;
+    const what = parts.slice(1).join(' · ');
+    return `<div class="notif-card status-${esc(n.status)}">
+      <div class="notif-card-head">
+        <div>
+          <div class="notif-card-who">${esc(who)}</div>
+          <div class="notif-card-what">${esc(what)}</div>
+        </div>
+        <span class="notif-stage-chip ${esc(n.status)}">${esc(statusLabel(n.status))}</span>
+      </div>
+      ${n.reminderNote ? `<div class="notif-card-note">⏰ ${esc(n.reminderNote)}</div>` : ''}
+      <div class="notif-card-actions">
+        ${prv ? `<button class="notif-btn ghost" data-move-appt="${esc(n.appointmentId)}" data-to="${prv}">‹ ${esc(statusLabel(prv))}</button>` : '<span></span>'}
+        <div class="notif-btn-group">
+          ${waUrl ? `<a class="notif-btn icon" target="_blank" rel="noopener" href="${esc(waUrl)}" title="WhatsApp">💬</a>` : ''}
+          <button class="notif-btn icon danger" data-move-appt="${esc(n.appointmentId)}" data-to="deleted" title="Eliminar">🗑</button>
+          ${nxt ? `<button class="notif-btn primary" data-move-appt="${esc(n.appointmentId)}" data-to="${nxt}">${esc(statusLabel(nxt))} ›</button>` : ''}
+        </div>
       </div>
     </div>`;
   };
 
+  const pendingSetup = [
+    !i.googleCalendarConfigured && 'Google Calendar',
+    !i.whatsappAdminConfigured && 'WhatsApp',
+    !i.clientReminderConfigured && 'Recordatorios',
+    !i.birthdayConfigured && 'Cumpleaños'
+  ].filter(Boolean);
+
   return `<div class="notifications-list">
-    <div class="card integration-card">
-      <div class="section-head compact-head">
-        <div><div class="title">Reservas</div><div class="subtitle">Mueve cada cita por su estado. Una tarjeta por reserva.</div></div>
-      </div>
-      <div class="integration-grid">
-        <div><b>Google Calendar</b><span>${i.googleCalendarConfigured ? '✓ Conectado' : '⚠ Pendiente'}</span></div>
-        <div><b>WhatsApp Admin</b><span>${i.whatsappAdminConfigured ? '✓ Conectado' : '⚠ Pendiente'}</span></div>
-        <div><b>Recordatorios</b><span>${i.clientReminderConfigured ? `✓ Activo` : '⚠ Pendiente'}</span></div>
-        <div><b>Cumpleaños</b><span>${i.birthdayConfigured ? '✓ Activo' : '⚠ Pendiente'}</span></div>
+    <div class="notif-header">
+      <div>
+        <div class="title">Reservas</div>
+        <div class="subtitle">${bookings.length} activa${bookings.length === 1 ? '' : 's'} · toca una etapa para filtrar</div>
       </div>
     </div>
 
-    <div class="kanban-board">
-      ${COLUMNS.map(col => {
-        const cards = bookingCards.filter(n => n.status === col.key);
-        return `<div class="kanban-col">
-          <div class="kanban-col-head">
-            <span class="kanban-col-label ${col.key}">${col.label}</span>
-            <span class="kanban-col-count">${cards.length}</span>
-          </div>
-          <div class="kanban-col-body">
-            ${cards.length ? cards.map(card).join('') : `<div class="kanban-empty">—</div>`}
-          </div>
-        </div>`;
-      }).join('')}
+    <div class="notif-filters">
+      <button class="notif-filter ${filter === 'all' ? 'active' : ''}" data-notif-filter="all">
+        Todas <span class="notif-filter-count">${bookings.length}</span>
+      </button>
+      ${STAGES.map(s => `<button class="notif-filter ${filter === s.key ? 'active' : ''} ${s.key}" data-notif-filter="${s.key}">
+        ${esc(s.label)} <span class="notif-filter-count">${countFor(s.key)}</span>
+      </button>`).join('')}
     </div>
 
-    ${bookingCards.length === 0 ? `<div class="empty">No hay reservas activas.</div>` : ''}
+    ${shown.length
+      ? `<div class="notif-cards">${shown.map(card).join('')}</div>`
+      : `<div class="empty notif-empty">${filter === 'all' ? 'No hay reservas activas todavía.' : 'Nada en esta etapa.'}</div>`}
 
-    <div class="card integration-card" style="margin-top:16px">
-      <div class="section-head compact-head">
-        <div><div class="title">Actividad</div><div class="subtitle">Cumpleaños, avisos y sistema.</div></div>
-        ${otherFeed.length ? `<button class="pill-button" style="color:var(--red)" data-clear-all-notifications>LIMPIAR</button>` : ''}
+    ${otherFeed.length ? `
+    <div class="notif-header" style="margin-top:22px">
+      <div>
+        <div class="title">Avisos</div>
+        <div class="subtitle">Cumpleaños y recordatorios del sistema</div>
       </div>
+      <button class="pill-button" style="color:var(--red)" data-clear-all-notifications>LIMPIAR</button>
     </div>
-    ${otherFeed.length ? `<div class="card-list">${otherFeed.map(n => {
-      const action = n.actionUrl && n.actionLabel && n.actionLabel !== 'multi'
-        ? `<a class="mini-action" target="_blank" rel="noopener" href="${esc(n.actionUrl)}">${esc(n.actionLabel)}</a>` : '';
-      const ts = new Date(n.createdAt);
-      return `<div class="notification-row ${n.unread ? 'unread' : ''}">
-        <div class="notification-top"><div class="notif-title">${esc(n.title)}</div></div>
-        <div class="notif-message">${esc(n.message)}</div>
-        <div class="notif-time">${esc(formatTimeAgo(ts))}</div>
-        <div class="row-actions">
-          ${action}
-          <button class="mini-action notif-delete" data-delete-notification="${esc(n.id)}">Eliminar</button>
+    <div class="notif-cards">${otherFeed.map(n => `<div class="notif-card info">
+      <div class="notif-card-head">
+        <div>
+          <div class="notif-card-who">${esc(n.title)}</div>
+          <div class="notif-card-what">${esc(n.message)}</div>
         </div>
-      </div>`;
-    }).join('')}</div>` : `<div class="empty">Sin actividad reciente.</div>`}
+      </div>
+      <div class="notif-card-actions">
+        <span class="notif-card-time">${esc(formatTimeAgo(new Date(n.createdAt)))}</span>
+        <div class="notif-btn-group">
+          ${n.actionUrl && n.actionLabel && n.actionLabel !== 'multi' ? `<a class="notif-btn" target="_blank" rel="noopener" href="${esc(n.actionUrl)}">${esc(n.actionLabel)}</a>` : ''}
+          <button class="notif-btn icon danger" data-delete-notification="${esc(n.id)}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+    </div>`).join('')}</div>` : ''}
+
+    ${pendingSetup.length ? `<div class="notif-setup">
+      <b>Pendiente de configurar:</b> ${esc(pendingSetup.join(', '))}
+    </div>` : ''}
   </div>`;
 }
 
@@ -3566,6 +3571,11 @@ function adminServices(data) {
         <datalist id="service-categories">${[...new Set([...categories,...(state.salonConfig?.serviceCategories||[]).map(c=>c.toUpperCase())])].map(cat => `<option value="${esc(cat)}">`).join('')}</datalist>
         <div class="form-field"><label>Duración (min)</label><input type="number" min="5" name="dur" value="${esc(editing?.dur ?? 60)}"></div>
       </div>
+      <div class="form-field"><label>Lo realiza</label><select name="area">
+        <option value="hands" ${(editing?.area || 'hands') === 'hands' ? 'selected' : ''}>Especialista de manos</option>
+        <option value="feet" ${(editing?.area || 'hands') === 'feet' ? 'selected' : ''}>Especialista de pies</option>
+        <option value="both" ${(editing?.area || 'hands') === 'both' ? 'selected' : ''}>Cualquiera del equipo</option>
+      </select><div class="field-hint">Las clientas pueden reservar un servicio de manos y uno de pies a la misma hora, porque los atienden personas distintas.</div></div>
       <div class="form-field"><label>Descripción</label><textarea name="desc" rows="2" placeholder="Descripción breve para clientas...">${esc(editing?.desc || '')}</textarea></div>
       <div class="form-grid two-col">
         <div class="form-field"><label>Precio</label><input type="number" min="0" name="price" value="${esc(editing?.price ?? 0)}"></div>
@@ -4013,6 +4023,7 @@ function adminStaff(data) {
       <div class="form-grid two-col">
         <div class="form-field"><label>Nombre</label><input name="name" value="${esc(editing?.name || '')}" placeholder="Ana García" required></div>
         <div class="form-field"><label>Puesto</label><input name="role" value="${esc(editing?.role || '')}" placeholder="Nail Artist Senior"></div>
+        <div class="form-field"><label>Área de especialidad</label><select name="area"><option value="hands" ${(editing?.area||'both')==='hands'?'selected':''}>Manos (manicure)</option><option value="feet" ${(editing?.area||'both')==='feet'?'selected':''}>Pies (pedicure)</option><option value="both" ${(editing?.area||'both')==='both'?'selected':''}>Ambas</option></select><div class="field-hint">Define qué citas puede atender y su disponibilidad en la agenda.</div></div>
       </div>
       <div class="form-field"><label>Bio corta</label><textarea name="bio" rows="3" placeholder="Especialista en manicure ruso con 5 años de experiencia...">${esc(editing?.bio || '')}</textarea></div>
       <div class="form-grid two-col">
@@ -4699,9 +4710,7 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.hasAttribute('data-client-login')) return clientLogin();
-  if (target.hasAttribute('data-client-send-otp')) return sendOtpViaWhatsApp();
-  if (target.hasAttribute('data-client-verify-otp')) return verifyOtpAndRegister();
-  if (target.hasAttribute('data-client-resend-otp')) return sendOtpViaWhatsApp();
+  if (target.hasAttribute('data-client-register')) return clientRegister();
   if (target.hasAttribute('data-client-logout')) return clientLogout();
 
   // Blog (public)
@@ -4869,6 +4878,7 @@ app.addEventListener('click', async event => {
   }
   if (target.dataset.cycleStatus) return cycleStatus(target.dataset.cycleStatus, target.dataset.currentStatus);
   if (target.dataset.moveAppt) return moveApptStatus(target.dataset.moveAppt, target.dataset.to);
+  if (target.dataset.notifFilter) { state.admin.notifFilter = target.dataset.notifFilter; return render(); }
   if (target.dataset.priceStep) {
     const id = target.dataset.priceStep;
     const service = state.admin.data.services.find(s => s.id === id);
