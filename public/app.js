@@ -716,11 +716,8 @@ function startBooking(serviceId = null) {
   state.tab = 'reservar';
   state.booking.step = serviceId ? 2 : 1;
   state.booking.serviceId = serviceId;
-  // B1: keep serviceIds in sync so the slot hold always has the IDs it needs.
-  if (serviceId) state.booking.serviceIds = [serviceId];
   state.booking.date = state.booking.date || todayLocal();
   state.booking.time = null;
-  state.booking.holdError = '';
   state.booking.error = '';
   state.booking.success = null;
   history.replaceState(null, '', '#reservar');
@@ -814,10 +811,8 @@ async function applyRebook() {
   const rb = state.booking.rebook;
   if (!rb.found || !rb.service || !rb.service.active) return;
   state.booking.serviceId = rb.service.id;
-  state.booking.serviceIds = [rb.service.id]; // B1: keep in sync
   state.booking.whatsapp = rb.whatsapp;
   state.booking.name = rb.name || '';
-  state.booking.date = state.booking.date || todayLocal();
   if (rb.preferences) {
     state.booking.styleChoice = rb.preferences.styleChoice || '';
     state.booking.colorChoice = rb.preferences.colorChoice || '';
@@ -828,7 +823,6 @@ async function applyRebook() {
   }
   state.booking.step = 2;
   state.booking.time = null;
-  state.booking.holdError = '';
   await loadAvailability();
   render();
 }
@@ -2574,55 +2568,38 @@ function bookingStepService() {
   if (state.clientAuth.loggedIn && !rb.whatsapp && state.clientAuth.whatsapp) {
     rb.whatsapp = state.clientAuth.whatsapp;
   }
-
-  // STORY B1 — Contextual rebook bar. Only shown when the client is
-  // recognized (logged in or had a successful rebook lookup). First-time
-  // visitors see a clean service list with zero noise.
-  const rebookBar = (() => {
-    // Already looked up and found a previous service
-    if (rb.found && rb.service?.active) {
-      return `<div class="rebook-bar">
-        <span>¡Hola${rb.name ? ' ' + esc(rb.name) : ''}! ¿Repetir <b>${esc(rb.service.name)}</b>?</span>
-        <button class="btn btn-primary btn-small" data-rebook-apply>SÍ, RESERVAR →</button>
-      </div>`;
-    }
-    // Logged in — trigger auto-lookup on first render (handled by applyRebook)
-    if (state.clientAuth.loggedIn && state.clientAuth.whatsapp && !rb.checked) {
-      // Silently trigger rebook lookup; the bar will appear on next render if
-      // a previous visit exists. We set the whatsapp and let lookupRebook run.
-      if (!rb.whatsapp) rb.whatsapp = state.clientAuth.whatsapp;
-    }
-    return '';
-  })();
-
-  // STORY B1 — Rebook WhatsApp lookup moves to a subtle collapsible at the
-  // bottom of the service list, not a prominent card at the top.
-  const rebookLookup = `<details class="rebook-lookup">
-    <summary>¿Ya nos visitaste? Busca tu cita anterior</summary>
-    <div style="padding:10px 0">
+  // has-visit turns the step into a two-column layout on desktop: menu on the
+  // left, sticky visit summary on the right. On phones it's a no-op.
+  return `<div class="booking-step ${(state.booking.serviceIds || []).length ? 'has-visit' : ''}">
+    ${(state.promoBanners || []).length ? `<div class="promo-strip">${(state.promoBanners || []).map(p => `<span class="promo-strip-item">🏷️ ${esc(p.title)}${p.code ? ` — código <b>${esc(p.code)}</b>` : ''}</span>`).join('')}</div>` : ''}
+    <div class="card" style="margin-bottom:16px">
+      <div class="eyebrow">¿YA NOS VISITASTE?</div>
+      <div class="subtitle" style="margin:6px 0 10px">Ingresa tu WhatsApp y reserva de nuevo en un paso.</div>
       <div class="form-grid two-col">
         <input value="${esc(rb.whatsapp)}" data-rebook-whatsapp inputmode="tel" placeholder="33 0000 0000">
         <button class="btn btn-outline btn-small" data-rebook-lookup ${rb.checking ? 'disabled' : ''}>${rb.checking ? 'BUSCANDO…' : 'BUSCAR'}</button>
       </div>
       ${rb.error ? `<div class="error-box">${esc(rb.error)}</div>` : ''}
       ${rb.checked && !rb.found ? `<div class="service-meta" style="margin-top:8px">No encontramos citas anteriores con ese WhatsApp.</div>` : ''}
+      ${rb.found && rb.service?.active ? `
+        <div class="card" style="margin-top:12px;background:var(--surface)">
+          <div class="service-name">¡Hola de nuevo${rb.name ? ', ' + esc(rb.name) : ''}!</div>
+          <div class="service-meta">Tu última cita fue: ${esc(rb.service.name)} · ${money(rb.service.price)}</div>
+          <button class="btn btn-primary btn-small" style="margin-top:10px" data-rebook-apply>RESERVAR IGUAL OTRA VEZ</button>
+        </div>` : ''}
       ${rb.found && rb.service && !rb.service.active ? `<div class="service-meta" style="margin-top:8px">Ese servicio ya no está disponible — elige uno nuevo abajo.</div>` : ''}
     </div>
-  </details>`;
-
-  return `<div class="booking-step">
-    ${rebookBar}
-    ${(state.promoBanners || []).length ? `<div class="promo-strip">${(state.promoBanners || []).map(p => `<span class="promo-strip-item">🏷️ ${esc(p.title)}${p.code ? ` — código <b>${esc(p.code)}</b>` : ''}</span>`).join('')}</div>` : ''}
-    <div class="section-head"><div><div class="title">1. Elige tu servicio</div><div class="subtitle">Toca un servicio para continuar.</div></div></div>
+    <div class="section-head"><div><div class="title">1. Servicio</div><div class="subtitle">¿Qué te quieres hacer?</div></div></div>
+    ${visitSummaryBar()}
     ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => {
+      const picked = (state.booking.serviceIds || []).includes(s.id);
       const areaIcon = s.area === 'feet' ? '🦶' : s.area === 'both' ? '✨' : '💅';
-      const discount = discountedPriceFor(s);
-      return `<button class="card service-card selectable" data-pick-service="${esc(s.id)}">
-        <span><span class="service-name">${esc(areaIcon)} ${esc(s.name)}</span><span class="service-meta">${esc(s.dur)} min${s.desc ? ' · ' + esc(s.desc) : ''}</span></span>
-        <span class="price">${discount ? `<s style="opacity:.5;font-size:.85em">${money(s.price)}</s> ${money(discount.finalPrice)}` : money(s.price)}</span>
+      return `<button class="card service-card selectable multi ${picked ? 'active' : ''}" data-pick-service="${esc(s.id)}">
+        <span class="svc-pick ${picked ? 'on' : ''}">${picked ? '✓' : '+'}</span>
+        <span><span class="service-name">${esc(areaIcon)} ${esc(s.name)}</span><span class="service-meta">${esc(s.dur)} min · ${esc(s.desc)}</span></span>
+        <span class="price">$ ${esc(s.price)}</span>
       </button>`;
     }).join('')}</div>`).join('')}
-    ${rebookLookup}
   </div>`;
 }
 
@@ -2630,30 +2607,16 @@ function bookingStepTime() {
   const b = state.booking;
   const svc = serviceById(b.serviceId);
   const dates = dateOptions();
-  // STORY B2 — only show free slots. Busy slots are noise.
-  const freeSlots = (b.slots || []).filter(s => !s.busy);
-
-  // Visit summary for multi-service (kept compact)
-  const visit = b.visit;
-  const ids = (b.serviceIds || []).filter(Boolean);
-  const visitInfo = ids.length > 1 && visit
-    ? `<div class="visit-summary-compact">
-        <span>${ids.map(id => { const s = serviceById(id); return s ? esc(s.name) : ''; }).filter(Boolean).join(' + ')}</span>
-        <span>${visit.totalMinutes} min${visit.parallel ? ' · dos especialistas a la vez' : ''} · ${money(ids.reduce((t, id) => { const s = serviceById(id); return t + (s ? Number(s.price || 0) : 0); }, 0))}</span>
-      </div>`
-    : '';
-
+  const free = b.slots.filter(s => !s.busy).length;
   return `<div class="booking-step">
-    <div class="section-head"><div><div class="title">2. Fecha y hora</div><div class="subtitle">${esc(svc?.name || '')} · ${svc ? svc.dur + ' min · ' + money(svc.price) : ''}</div></div><button class="pill-button" data-step="1">← SERVICIO</button></div>
-    ${visitInfo}
+    <div class="section-head"><div><div class="title">2. Fecha y hora</div><div class="subtitle">${esc(svc?.name || '')} · ${svc ? money(svc.price) : ''}</div></div><button class="pill-button" data-step="1">CAMBIAR</button></div>
     <div class="date-row">${dates.map(d => `<button class="date-chip ${b.date === d.ymd ? 'active' : ''}" data-date="${d.ymd}"><b>${d.day}</b><span>${d.num}</span></button>`).join('')}</div>
     <div class="form-field compact-field"><label>Otra fecha</label><input type="date" min="${todayLocal()}" value="${esc(b.date)}" data-booking-date-input></div>
+    <div class="fomo" style="justify-content:flex-start;padding:0 0 10px"><span class="dot"></span><span>${free ? `QUEDAN ${free} HORARIOS` : 'SIN HORARIOS DISPONIBLES'} · los horarios ocupados se bloquean automáticamente</span></div>
     ${b.holdError ? `<div class="error-box">${esc(b.holdError)}</div>` : ''}
-    ${b.loadingSlots ? `<div class="empty">Cargando horarios…</div>` : freeSlots.length
-      ? `<div class="slot-count">${freeSlots.length} horario${freeSlots.length !== 1 ? 's' : ''} disponible${freeSlots.length !== 1 ? 's' : ''}</div>
-         <div class="time-grid">${freeSlots.map(s => `<button class="time-btn${b.time === s.time ? ' active' : ''}" data-time="${s.time}"><span>${s.time}</span></button>`).join('')}</div>`
-      : `<div class="empty">Sin horarios este día. Prueba otra fecha.</div>`}
+    ${b.loadingSlots ? `<div class="empty">Cargando horarios…</div>` : `<div class="time-grid">${b.slots.map(s => `<button class="time-btn ${b.time === s.time ? 'active' : ''} ${s.busy ? 'busy' : ''}" ${s.busy ? 'disabled aria-disabled="true"' : ''} data-time="${s.time}"><span>${s.time}</span>${s.busy ? '<small>Ocupado</small>' : '<small>Libre</small>'}</button>`).join('')}</div>`}
     ${b.error ? `<div class="error-box">${esc(b.error)}</div>` : ''}
+    <button class="btn btn-primary" style="margin-top:16px" data-step="3" ${!b.time ? 'disabled' : ''}>CONTINUAR</button>
   </div>`;
 }
 
@@ -2661,55 +2624,42 @@ function bookingStepConfirm() {
   const b = state.booking;
   const svc = serviceById(b.serviceId);
   const discount = svc ? discountedPriceFor(svc) : null;
+  const cfg = state.salonConfig || {};
   const ca = state.clientAuth;
   // Auto-fill from logged-in account if fields are empty
   if (ca.loggedIn && !b.name && ca.displayName) b.name = ca.displayName;
   if (ca.loggedIn && !b.whatsapp && ca.whatsapp) b.whatsapp = ca.whatsapp;
-  // STORY B3 — Slim Step 3: only Name + WhatsApp required, promo collapsed,
-  // preferences deferred to the success screen (Story B4).
-
-  // Multi-service total
-  const ids = (b.serviceIds || []).filter(Boolean);
-  const allSvcs = ids.map(id => serviceById(id)).filter(Boolean);
-  const totalPrice = allSvcs.length > 1
-    ? allSvcs.reduce((t, s) => t + Number(s.price || 0), 0)
-    : Number(svc?.price || 0);
-  const finalTotal = discount ? discount.finalPrice : totalPrice;
-
-  // Human-readable date
-  const dateLabel = (() => {
-    try {
-      const d = new Date(b.date + 'T12:00:00');
-      return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-    } catch { return b.date; }
-  })();
-
-  // Total duration
-  const totalDur = allSvcs.length > 1 && b.visit
-    ? b.visit.totalMinutes
-    : (svc ? svc.dur : '');
-
+  const dl = (id, list) => list?.length ? `<datalist id="${id}">${list.map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : '';
   return `<div class="booking-step">
-    <div class="section-head"><div><div class="title">3. Confirmar</div><div class="subtitle">Revisa y confirma tu cita.</div></div><button class="pill-button" data-step="2">← HORARIO</button></div>
-    <div class="form-grid two-col" style="margin-bottom:12px">
-      <div class="form-field"><label>Nombre</label><input value="${esc(b.name)}" data-field="name" placeholder="Tu nombre" autocomplete="name"></div>
-      <div class="form-field"><label>WhatsApp</label><input value="${esc(b.whatsapp)}" data-field="whatsapp" inputmode="tel" placeholder="33 0000 0000" autocomplete="tel"></div>
+    <div class="section-head"><div><div class="title">3. Confirmar</div><div class="subtitle">Revisa tus datos antes de apartar tu lugar.</div></div><button class="pill-button" data-step="2">CAMBIAR</button></div>
+    <div class="card info-grid" style="margin-bottom:16px">
+      <div class="info-line"><strong>Servicio</strong><span>${esc(svc?.name || '')}</span></div>
+      <div class="info-line"><strong>Fecha</strong><span>${esc(b.date)}</span></div>
+      <div class="info-line"><strong>Hora</strong><span>${esc(b.time)}</span></div>
+      <div class="info-line"><strong>Total</strong><span>${svc ? priceDisplay(svc) : ''}</span></div>
+      ${discount ? `<div class="info-line"><strong>Promoción</strong><span>${esc(discount.promo.label || 'Descuento aplicado')}</span></div>` : ''}
     </div>
-    <details class="promo-toggle"${b.promoCode ? ' open' : ''}>
-      <summary>¿Tienes un código de promoción?</summary>
-      <div class="form-field" style="padding:8px 0 0"><input value="${esc(b.promoCode)}" data-field="promoCode" placeholder="Ej. VERANO15" style="text-transform:uppercase"></div>
-    </details>
+    <div class="form-grid two-col">
+      <div class="form-field"><label>Nombre</label><input value="${esc(b.name)}" data-field="name" placeholder="Tu nombre"></div>
+      <div class="form-field"><label>WhatsApp</label><input value="${esc(b.whatsapp)}" data-field="whatsapp" inputmode="tel" placeholder="33 0000 0000"></div>
+    </div>
+    <div class="form-field"><label>Tu cumpleaños <span class="field-hint">(opcional — ¡te consentimos en tu día! 🎂)</span></label><input type="date" value="${esc(b.birthday || '')}" data-field="birthday"></div>
+    <div class="form-field"><label>¿Tienes un código de promoción?</label><input value="${esc(b.promoCode)}" data-field="promoCode" placeholder="Opcional, ej. VERANO15" style="text-transform:uppercase"></div>
+    <div class="card preference-card">
+      <div class="section-head compact-head"><div><div class="title">Perfil de clienta</div><div class="subtitle">Opcional: esto ayuda al salón a recordar tus gustos para próximas visitas.</div></div></div>
+      ${dl('dl-estilos', cfg.estilos)}
+      ${dl('dl-colors', cfg.colors)}
+      ${dl('dl-bebidas', cfg.bebidas)}
+      <div class="form-grid two-col">
+        <div class="form-field"><label>Estilo preferido</label><input value="${esc(b.styleChoice)}" data-field="styleChoice" list="dl-estilos" placeholder="${esc((cfg.estilos||['Natural, french, editorial...']).join(', '))}"></div>
+        <div class="form-field"><label>Color favorito</label><input value="${esc(b.colorChoice)}" data-field="colorChoice" list="dl-colors" placeholder="${esc((cfg.colors||['Nude, rojo, negro...']).join(', '))}"></div>
+        <div class="form-field"><label>Bebida preferida</label><input value="${esc(b.drinkChoice)}" data-field="drinkChoice" list="dl-bebidas" placeholder="${esc((cfg.bebidas||['Café, té, agua...']).join(', '))}"></div>
+        <div class="form-field"><label>Horario preferido</label><input value="${esc(b.timePreference)}" data-field="timePreference" placeholder="Mañana, tarde, sábado..."></div>
+      </div>
+      <div class="form-field"><label>Alergias o cuidados</label><input value="${esc(b.allergies)}" data-field="allergies" placeholder="Ej. piel sensible, alergia a algún producto"></div>
+      <div class="form-field"><label>Nota para tu cita</label><textarea data-field="notes" rows="3" placeholder="Idea de diseño, ocasión especial, referencia, etc.">${esc(b.notes)}</textarea></div>
+    </div>
     ${verificationBlock(b.whatsapp)}
-    <div class="card info-grid" style="margin:16px 0">
-      <div class="eyebrow" style="margin-bottom:8px">RESUMEN</div>
-      ${allSvcs.length > 1
-        ? allSvcs.map(s => `<div class="info-line"><span>${esc(s.name)}</span><span>${money(s.price)}</span></div>`).join('')
-        : `<div class="info-line"><span>${esc(svc?.name || '')}</span><span>${svc ? money(svc.price) : ''}</span></div>`}
-      <div class="info-line"><span>${esc(dateLabel)}</span><span>${esc(b.time)}</span></div>
-      ${totalDur ? `<div class="info-line"><span>Duración</span><span>${totalDur} min</span></div>` : ''}
-      ${discount ? `<div class="info-line" style="color:var(--gold)"><span>${esc(discount.promo.label || 'Descuento')}</span><span>−${money(totalPrice - discount.finalPrice)}</span></div>` : ''}
-      <div class="info-line" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px"><strong>Total</strong><strong>${money(finalTotal)}</strong></div>
-    </div>
     ${b.error ? `<div class="error-box">${esc(b.error)}</div>` : ''}
     <button class="btn btn-primary" data-confirm-booking>CONFIRMAR CITA</button>
   </div>`;
@@ -3433,25 +3383,23 @@ function holderId() {
   return state._holderId;
 }
 
-/* STORY B2 — Reserve a slot and return whether it succeeded. The caller
-   decides whether to advance to Step 3 based on the result. */
+/* Reserve the selected slot for a few minutes. On refusal the slot was taken
+   between render and tap, so refresh the grid and say so immediately. */
 async function holdSelectedSlot() {
   const b = state.booking;
   const ids = (b.serviceIds || []).filter(Boolean);
-  if (!b.date || !b.time || !ids.length) return false;
+  if (!b.date || !b.time || !ids.length) return;
   try {
     await api('/api/slots/hold', {
       method: 'POST',
       body: { date: b.date, time: b.time, serviceIds: ids, holder: holderId() }
     });
     b.holdError = '';
-    return true;
   } catch (err) {
     b.time = null;
     b.holdError = err.message || 'Ese horario acaba de ocuparse.';
     await loadAvailability();
     render();
-    return false;
   }
 }
 
@@ -5275,25 +5223,18 @@ app.addEventListener('click', async event => {
   }
   if (target.hasAttribute('data-rebook-lookup')) return lookupRebook();
   if (target.hasAttribute('data-rebook-apply')) return applyRebook();
-  // STORY B1 — single-tap auto-advance. Selecting a service goes straight to
-  // the date/time step. Multi-service is handled later via "add another" in
-  // Step 2 (Story B5). The legacy multi-select handlers are preserved below
-  // so data-clear-visit and data-visit-continue still work if invoked.
   if (target.dataset.pickService) {
     const id = target.dataset.pickService;
-    state.booking.serviceIds = [id];
-    state.booking.serviceId = id;
+    const list = state.booking.serviceIds || [];
+    state.booking.serviceIds = list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+    // Keep the legacy single id in sync so every existing screen keeps working.
+    state.booking.serviceId = state.booking.serviceIds[0] || '';
     state.booking.time = null;
-    state.booking.holdError = '';
-    state.booking.date = state.booking.date || todayLocal();
-    state.booking.step = 2;
-    await loadAvailability();
     return render();
   }
   if (target.hasAttribute('data-clear-visit')) {
     state.booking.serviceIds = [];
     state.booking.serviceId = '';
-    state.booking.step = 1;
     return render();
   }
   if (target.hasAttribute('data-visit-continue')) {
@@ -5304,23 +5245,9 @@ app.addEventListener('click', async event => {
     return render();
   }
   if (target.dataset.step) {
-    const newStep = Number(target.dataset.step);
-    // STORY B2: going back to Step 2 from Step 3 releases the held slot
-    // and clears the time so the client can pick a new one.
-    if (newStep === 2 && state.booking.step === 3) {
-      releaseHeldSlot();
-      state.booking.time = null;
-      state.booking.holdError = '';
-    }
-    // Going back to Step 1 also releases any held slot.
-    if (newStep === 1 && state.booking.step > 1) {
-      releaseHeldSlot();
-      state.booking.time = null;
-      state.booking.holdError = '';
-    }
-    state.booking.step = newStep;
+    state.booking.step = Number(target.dataset.step);
     state.booking.error = '';
-    if (newStep === 2) await loadAvailability();
+    if (state.booking.step === 2) await loadAvailability();
     return render();
   }
   if (target.dataset.date) {
@@ -5329,19 +5256,12 @@ app.addEventListener('click', async event => {
     await loadAvailability();
     return render();
   }
-  // STORY B2 — time tap auto-advances to Step 3 if the slot hold succeeds.
-  // If the hold is refused (slot taken), stay on Step 2 with the error shown.
   if (target.dataset.time) {
     state.booking.time = target.dataset.time;
-    state.booking.holdError = '';
-    render(); // show the selected time immediately (visual feedback)
-    const held = await holdSelectedSlot();
-    if (held) {
-      state.booking.step = 3;
-      state.booking.error = '';
-    }
-    // If hold failed, holdSelectedSlot already cleared time, refreshed
-    // slots, set holdError, and called render().
+    // Hold it so nobody else can start checkout on the same slot. If the hold
+    // is refused the slot went in the last few seconds — refresh and tell her
+    // now, rather than after she's filled in the whole form.
+    holdSelectedSlot();
     return render();
   }
   if (target.hasAttribute('data-verify-request')) {
@@ -5369,8 +5289,7 @@ app.addEventListener('click', async event => {
   }
   if (target.hasAttribute('data-confirm-booking')) return createBooking();
   if (target.hasAttribute('data-reset-booking')) {
-    releaseHeldSlot();
-    state.booking = { serviceIds: [], step: 1, serviceId: null, date: todayLocal(), time: null, name: '', whatsapp: '', styleChoice: '', colorChoice: '', drinkChoice: '', timePreference: '', allergies: '', notes: '', promoCode: '', loadingSlots: false, slots: [], error: '', holdError: '', success: null, visit: null, rebook: { whatsapp: '', checking: false, checked: false, found: false, name: '', service: null, preferences: null, error: '' } };
+    state.booking = { step: 1, serviceId: null, date: todayLocal(), time: null, name: '', whatsapp: '', styleChoice: '', colorChoice: '', drinkChoice: '', timePreference: '', allergies: '', notes: '', promoCode: '', loadingSlots: false, slots: [], error: '', success: null, rebook: { whatsapp: '', checking: false, checked: false, found: false, name: '', service: null, preferences: null, error: '' } };
     return render();
   }
   if (target.hasAttribute('data-admin-login')) return adminLogin();

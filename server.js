@@ -98,7 +98,6 @@ let SALON = null;
 
 async function handleApi(req, res, pathname, url) {
   try {
-    logger.debug(`API request: ${req.method} ${pathname}`);
     if (req.method === 'GET' && pathname === '/api/health') {
       return json(res, 200, { ok: true, service: 'black-rococo', time: new Date().toISOString() });
     }
@@ -226,7 +225,6 @@ async function handleApi(req, res, pathname, url) {
       if (await adminSettings.handleAdminRoutes(adminCtx)) return;
     }
 
-    logger.warn(`404 catch-all: ${req.method} ${pathname}`);
     return json(res, 404, { error: 'API route not found' });
   } catch (err) {
     // The full error (stack, Supabase text) goes to the SERVER log only. The
