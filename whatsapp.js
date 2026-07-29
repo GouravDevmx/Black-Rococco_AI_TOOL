@@ -13,7 +13,7 @@
     GET /academia/:slug    -> index.html with the course's meta + Course JSON-LD
     GET /sitemap.xml       -> generated from live DB (static pages + posts + courses)
 */
-const fs = require('fs');
+ const fs = require('fs');
 const path = require('path');
 const { PUBLIC_DIR, SITE_URL } = require('../config');
 
