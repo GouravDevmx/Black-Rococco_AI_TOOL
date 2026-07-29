@@ -125,6 +125,12 @@ async function handleApi(req, res, pathname, url) {
       const db = await readDb(salonId, ['services', 'appointments', 'staff']);
       if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
     }
+    // Slot holds — same collections as availability, since holding validates
+    // the slot is genuinely free before reserving it.
+    if (req.method === 'POST' && (pathname === '/api/slots/hold' || pathname === '/api/slots/release')) {
+      const db = await readDb(salonId, ['services', 'appointments', 'staff']);
+      if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
     if (req.method === 'GET' && pathname === '/api/rebook') {
       const db = await readDb(salonId, ['clients', 'appointments', 'services', 'staff']);
       if (await bookings.handlePublicRoutes({ ...publicCtx, db })) return;
