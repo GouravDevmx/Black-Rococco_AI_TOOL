@@ -24,6 +24,7 @@ const state = {
   homeCarouselCache: [],
   heroSlide: 0,
   booking: {
+    serviceIds: [],
     step: 1,
     serviceId: null,
     date: null,
@@ -767,7 +768,13 @@ async function loadAvailability() {
   state.booking.error = '';
   render();
   try {
-    const data = await api(`/api/availability?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`);
+    const ids = (state.booking.serviceIds || []).filter(Boolean);
+    const q = ids.length > 1
+      ? `serviceIds=${encodeURIComponent(ids.join(','))}`
+      : `serviceId=${encodeURIComponent(serviceId)}`;
+    const data = await api(`/api/availability?${q}&date=${encodeURIComponent(date)}&holder=${encodeURIComponent(holderId())}`);
+    // Remember the planned visit so the confirm screen can explain the timing.
+    state.booking.visit = data.visit || null;
     state.booking.slots = data.slots;
   } catch (err) {
     state.booking.error = err.message;
@@ -827,7 +834,7 @@ async function createBooking() {
   try {
     const data = await api('/api/bookings', {
       method: 'POST',
-      body: { serviceId, date, time, name, whatsapp, styleChoice, colorChoice, drinkChoice, timePreference, allergies, notes, promoCode }
+      body: { serviceId, serviceIds: (state.booking.serviceIds || []).filter(Boolean), holder: holderId(), date, time, name, whatsapp, styleChoice, colorChoice, drinkChoice, timePreference, allergies, notes, promoCode }
     });
     state.booking.success = data;
     state.booking.step = 4;
@@ -2204,6 +2211,9 @@ function lightboxOverlay() {
       ${isVideo ? `<video src="${esc(item.url)}" controls autoplay playsinline></video>` : `<img src="${esc(item.url)}" alt="${esc(item.title || '')}">`}
     </div>
     ${(item.title || item.description) ? `<div class="lightbox-caption"><div class="cap-title" style="font-size:16px">${esc(item.title)}</div>${item.description ? `<div class="cap-desc" style="font-size:13px;margin-top:4px">${esc(item.description)}</div>` : ''}</div>` : ''}
+    ${item.kind !== 'video' || item.url ? `<div class="lightbox-cta">
+      <button class="btn btn-primary" data-book-this-look="${esc(item.category || '')}">QUIERO ESTE DISEÑO</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -2237,25 +2247,39 @@ function serviceDetailModal() {
   if (!s) return '';
   const discount = discountedPriceFor(s);
   const imgs = (s.imageUrls && s.imageUrls.length) ? s.imageUrls : (s.imageUrl ? [s.imageUrl] : []);
+  const picked = (state.booking.serviceIds || []).includes(s.id);
+  const areaLabel = s.area === 'feet' ? 'Especialista de pies'
+    : s.area === 'both' ? 'Cualquiera del equipo' : 'Especialista de manos';
+
+  /* The action bar lives OUTSIDE .modal-scroll so it's pinned to the bottom of
+     the card. Previously it sat at the end of the scrolling content, which
+     meant a long description buried the only button that matters. */
   return `<div class="modal-overlay" data-modal-backdrop>
-    <div class="modal-card">
+    <div class="modal-card modal-card-sticky">
       <button class="modal-close" data-close-service-modal aria-label="Cerrar">✕</button>
       <div class="modal-scroll">
         ${imgs.length
-          ? `<div class="modal-img-wrap"><img src="${esc(imgs[0])}" alt="${esc(s.name)}" loading="eager"></div>`
+          ? `<div class="modal-img-wrap">${autoCarousel(imgs, { alt: s.name, arrows: imgs.length > 1, eager: true, className: 'ac-fill modal-ac' })}</div>`
           : ''}
         <div class="modal-body">
           <div class="category-title">${esc(s.cat)}</div>
           <div class="service-name" style="font-size:22px;margin:6px 0">${esc(s.name)}</div>
-          <div class="service-meta" style="margin-bottom:10px">${esc(s.dur)} min</div>
-          <div class="subtitle rt-wrap">${richText(s.desc)}</div>
-          <div class="price" style="font-size:26px;margin:16px 0 6px">${priceDisplay(s)}</div>
-          ${discount ? `<div class="service-meta">${esc(discount.promo.label || 'Promoción aplicada')}</div>` : ''}
-          <div class="modal-actions">
-            <button class="btn btn-primary" data-book-from-modal="${esc(s.id)}">RESERVAR ESTE SERVICIO</button>
-            <button class="btn btn-outline" data-close-service-modal>VOLVER</button>
+          <div class="modal-meta-row">
+            <span>⏱ ${esc(s.dur)} min</span>
+            <span>💅 ${esc(areaLabel)}</span>
           </div>
+          <div class="subtitle rt-wrap">${richText(s.desc)}</div>
+          ${discount ? `<div class="modal-promo-note">🏷️ ${esc(discount.promo.label || 'Promoción aplicada')}</div>` : ''}
         </div>
+      </div>
+      <div class="modal-sticky-actions">
+        <div class="modal-price-block">
+          <span>Precio</span>
+          <b>${priceDisplay(s)}</b>
+        </div>
+        <button class="btn ${picked ? 'btn-outline' : 'btn-primary'} modal-cta" data-book-from-modal="${esc(s.id)}">
+          ${picked ? '✓ AGREGADO — VER VISITA' : 'AGREGAR Y RESERVAR'}
+        </button>
       </div>
     </div>
   </div>`;
@@ -2361,10 +2385,12 @@ function homeScreen() {
       <div class="hero-overlay">
         <div class="hero-title" data-hero-title>${esc(heroItem?.title || c.brand.heroTitle)}</div>
         <div class="hero-subtitle" data-hero-subtitle>${esc(heroItem?.subtitle || c.brand.heroSubtitle)}</div>
+        ${heroPriceAnchor()}
+        <div class="hero-cta-row">
+          <button class="btn btn-primary hero-cta" data-tab="reservar">RESERVAR MI CITA</button>
+          <button class="btn btn-ghost-light hero-cta-alt" data-tab="servicios">VER SERVICIOS Y PRECIOS</button>
+        </div>
       </div>
-    </div>
-    <div class="section-tight cta-row">
-      <button class="btn btn-primary" data-tab="reservar">RESERVA TU CITA</button>
     </div>
     <div class="specialties"><span class="line"></span><div class="eyebrow">ESPECIALISTAS EN<br><span>${esc(c.brand.specialties)}</span></div><span class="line"></span></div>
 
@@ -2375,9 +2401,11 @@ function homeScreen() {
       ${featuredServicesCarousel()}
       <button class="btn btn-outline" style="margin-top:12px" data-tab="servicios">VER TODOS LOS SERVICIOS</button>
     </div>
+    ${sectionCta('services')}
 
 
     ${promoBanner()}
+    ${sectionCta('promos')}
 
 
     <!-- 4. GALLERY -->
@@ -2393,22 +2421,39 @@ function homeScreen() {
         <button class="scroll-nav next" data-scroll-nav="1" aria-label="Siguiente">›</button>` : ''}
       </div>
     </div>
+    ${sectionCta('gallery')}
 
     ${(state.courses || []).length ? `<div class="section"><div class="card promo-card" style="border-color:var(--gold, #b08d57)"><div class="eyebrow">BLACK ROCOCO ACADEMY</div><div class="title" style="font-size:22px;margin:6px 0">Cursos y talleres profesionales</div><div class="subtitle">Certifícate en poligel, manicure ruso y más.</div><button class="btn btn-outline" style="margin-top:14px" data-tab="academia">VER CURSOS</button></div></div>` : ''}
 
     ${(state.blogPosts || []).length ? `<div class="section">
       <div class="section-head"><div class="title">Blog</div><button class="pill-button" data-tab="blog">VER TODOS →</button></div>
-      <div class="card-list">
-        ${(state.blogPosts || []).slice(0, 2).map(p => {
-          const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
-          return `<div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}" style="cursor:pointer">
-            <div class="eyebrow">${esc(dateStr)}</div>
-            <div class="title" style="font-size:16px;margin:4px 0">${esc(p.title)}</div>
-            ${p.excerpt ? `<div class="subtitle" style="font-size:13px">${esc(p.excerpt).slice(0, 80)}${p.excerpt.length > 80 ? '…' : ''}</div>` : ''}
-          </div>`;
-        }).join('')}
+      <div class="carousel-shell">
+        <div class="blog-track" data-scroll-track data-scroll-autoplay>
+          ${(state.blogPosts || []).slice(0, 8).map(p => {
+            const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
+            return `<article class="blog-slide" data-blog-open="${esc(p.slug || p.id)}">
+              <div class="blog-slide-cover">
+                ${p.coverImageUrl
+                  ? `<img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}">`
+                  : `<div class="blog-slide-placeholder">✦</div>`}
+                <span class="blog-slide-date">${esc(dateStr)}</span>
+              </div>
+              <div class="blog-slide-body">
+                <h3 class="blog-slide-title">${esc(p.title)}</h3>
+                ${p.excerpt ? `<p class="blog-slide-excerpt">${esc(p.excerpt)}</p>` : ''}
+                <span class="blog-slide-more">Leer más →</span>
+              </div>
+            </article>`;
+          }).join('')}
+          ${(state.blogPosts || []).length > 8 ? `<article class="blog-slide blog-slide-all" data-tab="blog">
+            <div class="blog-slide-all-inner"><span>＋</span><b>Ver todos los artículos</b></div>
+          </article>` : ''}
+        </div>
+        ${(state.blogPosts || []).length > 1 ? `<button class="scroll-nav prev" data-scroll-nav="-1" aria-label="Anterior">‹</button>
+        <button class="scroll-nav next" data-scroll-nav="1" aria-label="Siguiente">›</button>` : ''}
       </div>
     </div>` : ''}
+    ${sectionCta('blog')}
 
     ${team.length ? `<!-- 3b. TEAM -->
     <div class="section team-section">
@@ -2426,6 +2471,8 @@ function homeScreen() {
       </div>
     </div>` : ''}
 
+
+    ${sectionCta('team')}
 
     <!-- 3. ABOUT US (content + images managed in Admin -> CONFIGURACIÓN) -->
     <div class="section about-section">
@@ -2445,6 +2492,8 @@ function homeScreen() {
       </div>
     </div>
 
+
+    ${sectionCta('about')}
 
     <!-- 5. MAP -->
     <div class="section map-section">
@@ -2491,7 +2540,7 @@ function servicesScreen() {
     <div class="page-header"><div class="title">Servicios y precios</div><div class="subtitle">Selecciona cualquier servicio para reservar.</div></div>
     ${promoBanner()}
     <div class="section-tight">
-      ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => serviceButton(s, true)).join('')}</div>`).join('')}
+    ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => serviceButton(s, true)).join('')}</div>`).join('')}
     </div>
     ${bottomNav()}
   </section>`;
@@ -2519,7 +2568,9 @@ function bookingStepService() {
   if (state.clientAuth.loggedIn && !rb.whatsapp && state.clientAuth.whatsapp) {
     rb.whatsapp = state.clientAuth.whatsapp;
   }
-  return `<div class="booking-step">
+  // has-visit turns the step into a two-column layout on desktop: menu on the
+  // left, sticky visit summary on the right. On phones it's a no-op.
+  return `<div class="booking-step ${(state.booking.serviceIds || []).length ? 'has-visit' : ''}">
     ${(state.promoBanners || []).length ? `<div class="promo-strip">${(state.promoBanners || []).map(p => `<span class="promo-strip-item">🏷️ ${esc(p.title)}${p.code ? ` — código <b>${esc(p.code)}</b>` : ''}</span>`).join('')}</div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <div class="eyebrow">¿YA NOS VISITASTE?</div>
@@ -2539,7 +2590,16 @@ function bookingStepService() {
       ${rb.found && rb.service && !rb.service.active ? `<div class="service-meta" style="margin-top:8px">Ese servicio ya no está disponible — elige uno nuevo abajo.</div>` : ''}
     </div>
     <div class="section-head"><div><div class="title">1. Servicio</div><div class="subtitle">¿Qué te quieres hacer?</div></div></div>
-    ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => `<button class="card service-card selectable ${state.booking.serviceId === s.id ? 'active' : ''}" data-select-service="${esc(s.id)}"><span><span class="service-name">${esc(s.name)}</span><span class="service-meta">${esc(s.dur)} min · ${esc(s.desc)}</span></span><span class="price">$ ${esc(s.price)}</span></button>`).join('')}</div>`).join('')}
+    ${visitSummaryBar()}
+    ${groups.map(([cat, list]) => `<div class="category-title">${esc(cat)}</div><div class="card-list">${list.map(s => {
+      const picked = (state.booking.serviceIds || []).includes(s.id);
+      const areaIcon = s.area === 'feet' ? '🦶' : s.area === 'both' ? '✨' : '💅';
+      return `<button class="card service-card selectable multi ${picked ? 'active' : ''}" data-pick-service="${esc(s.id)}">
+        <span class="svc-pick ${picked ? 'on' : ''}">${picked ? '✓' : '+'}</span>
+        <span><span class="service-name">${esc(areaIcon)} ${esc(s.name)}</span><span class="service-meta">${esc(s.dur)} min · ${esc(s.desc)}</span></span>
+        <span class="price">$ ${esc(s.price)}</span>
+      </button>`;
+    }).join('')}</div>`).join('')}
   </div>`;
 }
 
@@ -2553,6 +2613,7 @@ function bookingStepTime() {
     <div class="date-row">${dates.map(d => `<button class="date-chip ${b.date === d.ymd ? 'active' : ''}" data-date="${d.ymd}"><b>${d.day}</b><span>${d.num}</span></button>`).join('')}</div>
     <div class="form-field compact-field"><label>Otra fecha</label><input type="date" min="${todayLocal()}" value="${esc(b.date)}" data-booking-date-input></div>
     <div class="fomo" style="justify-content:flex-start;padding:0 0 10px"><span class="dot"></span><span>${free ? `QUEDAN ${free} HORARIOS` : 'SIN HORARIOS DISPONIBLES'} · los horarios ocupados se bloquean automáticamente</span></div>
+    ${b.holdError ? `<div class="error-box">${esc(b.holdError)}</div>` : ''}
     ${b.loadingSlots ? `<div class="empty">Cargando horarios…</div>` : `<div class="time-grid">${b.slots.map(s => `<button class="time-btn ${b.time === s.time ? 'active' : ''} ${s.busy ? 'busy' : ''}" ${s.busy ? 'disabled aria-disabled="true"' : ''} data-time="${s.time}"><span>${s.time}</span>${s.busy ? '<small>Ocupado</small>' : '<small>Libre</small>'}</button>`).join('')}</div>`}
     ${b.error ? `<div class="error-box">${esc(b.error)}</div>` : ''}
     <button class="btn btn-primary" style="margin-top:16px" data-step="3" ${!b.time ? 'disabled' : ''}>CONTINUAR</button>
@@ -2737,7 +2798,23 @@ function galleryScreen() {
       ${visible.length ? visible.map((m, i) => masonryItem(m, i)).join('') : `<div class="empty">Aún no hay fotos ${filter || search ? 'que coincidan con tu búsqueda' : 'en la galería'}.</div>`}
     </div>
     ${visible.length < filtered.length ? `<div class="section" style="text-align:center"><button class="btn btn-outline" data-load-more-gallery>CARGAR MÁS</button></div>` : ''}
-    <div class="section"><a class="btn btn-outline" target="_blank" rel="noopener" href="${esc(state.config.contact.instagramUrl)}">VER ${esc(state.config.contact.instagramHandle)} EN INSTAGRAM</a></div>
+
+    <!-- Closing conversion block: the gallery is the highest-intent screen in
+         the app, so it must offer a way to act rather than ending on a link
+         that sends the visitor off to Instagram. -->
+    <div class="section">
+      <div class="card gallery-cta-card">
+        <div class="eyebrow">¿TE ENAMORASTE DE ALGUNO?</div>
+        <div class="title" style="font-size:20px;margin:6px 0 4px">Podemos recrearlo para ti</div>
+        <div class="subtitle">Muéstranos la foto que te gustó y lo diseñamos a tu medida.</div>
+        <button class="btn btn-primary" style="margin-top:14px" data-book-this-look="${esc(filter || '')}">RESERVAR MI CITA</button>
+        <a class="btn btn-outline" style="margin-top:10px" target="_blank" rel="noopener" href="${esc(state.config.contact.instagramUrl)}">VER ${esc(state.config.contact.instagramHandle)} EN INSTAGRAM</a>
+      </div>
+    </div>
+
+    ${visible.length ? `<div class="gallery-sticky-cta">
+      <button class="btn btn-primary" data-book-this-look="${esc(filter || '')}">RESERVAR MI CITA</button>
+    </div>` : ''}
     ${bottomNav()}
   </section>`;
 }
@@ -2892,19 +2969,26 @@ function blogScreen() {
     ${brandHeader()}
     <div class="page-header"><div class="title">Blog</div><div class="subtitle">Artículos de cuidado, tendencias y más.</div></div>
     ${posts.length === 0 ? `<div class="section"><div class="card" style="text-align:center"><div class="subtitle">Próximamente.</div></div></div>` : ''}
-    <div class="blog-list">
-      ${posts.map(p => {
-        const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
-        return `<div class="section"><div class="card blog-card" data-blog-open="${esc(p.slug || p.id)}">
-          ${p.coverImageUrl ? `<div class="blog-card-cover"><img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}"></div>` : ''}
-          <div class="blog-card-body">
-            <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
-            <div class="title" style="font-size:18px;margin:6px 0">${esc(p.title)}</div>
-            ${p.excerpt ? `<div class="subtitle" style="margin-top:6px">${esc(p.excerpt)}</div>` : ''}
-            ${p.tags.length ? `<div class="blog-tags">${p.tags.map(t => `<span class="blog-tag">${esc(t)}</span>`).join('')}</div>` : ''}
-          </div>
-        </div></div>`;
-      }).join('')}
+    <div class="section">
+      <div class="blog-grid">
+        ${posts.map(p => {
+          const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+          return `<article class="blog-grid-card" data-blog-open="${esc(p.slug || p.id)}">
+            <div class="blog-slide-cover">
+              ${p.coverImageUrl
+                ? `<img src="${esc(p.coverImageUrl)}" alt="${esc(p.title)}" loading="lazy" onerror="${IMG_FALLBACK}">`
+                : `<div class="blog-slide-placeholder">✦</div>`}
+            </div>
+            <div class="blog-slide-body">
+              <div class="eyebrow">${esc(p.author)} · ${esc(dateStr)}</div>
+              <h3 class="blog-slide-title">${esc(p.title)}</h3>
+              ${p.excerpt ? `<p class="blog-slide-excerpt">${esc(p.excerpt)}</p>` : ''}
+              ${p.tags.length ? `<div class="blog-tags">${p.tags.map(t => `<span class="blog-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+              <span class="blog-slide-more">Leer más →</span>
+            </div>
+          </article>`;
+        }).join('')}
+      </div>
     </div>
     ${bottomNav()}
   </section>`;
@@ -3250,6 +3334,160 @@ function adminReminders(data) {
     ${state.admin.error ? `<div class="error-box">${esc(state.admin.error)}</div>` : ''}
     <button class="btn btn-primary" data-save-reminders>GUARDAR RECORDATORIOS</button>
   </form>`;
+}
+
+/* Live summary of the services picked for this visit. The key thing it
+   communicates is WHY a manicure + pedicure still only takes an hour: two
+   specialists work at the same time. Clients don't know that unless we say it. */
+function visitSummaryBar() {
+  const ids = state.booking.serviceIds || [];
+  if (!ids.length) return '';
+  const picked = ids.map(id => serviceById(id)).filter(Boolean);
+  const byArea = {};
+  picked.forEach(s => {
+    const a = s.area === 'feet' ? 'feet' : s.area === 'both' ? 'both' : 'hands';
+    byArea[a] = (byArea[a] || 0) + Number(s.dur || 60);
+  });
+  const areas = Object.keys(byArea);
+  const totalMin = Math.max(...Object.values(byArea));
+  const totalPrice = picked.reduce((n, s) => n + Number(s.price || 0), 0);
+  const parallel = areas.length > 1;
+  const hrs = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  const dur = `${hrs ? hrs + ' h ' : ''}${mins ? mins + ' min' : ''}`.trim();
+
+  return `<div class="visit-bar">
+    <div class="visit-bar-head">
+      <div class="visit-bar-title">Tu visita · ${picked.length} servicio${picked.length > 1 ? 's' : ''}</div>
+      <button class="visit-clear" data-clear-visit>Limpiar</button>
+    </div>
+    <div class="visit-chips">
+      ${picked.map(s => `<span class="visit-chip">${esc(s.name)}<button data-pick-service="${esc(s.id)}" aria-label="Quitar">✕</button></span>`).join('')}
+    </div>
+    ${parallel ? `<div class="visit-parallel">✨ Dos especialistas te atienden a la vez — manos y pies al mismo tiempo, así terminas antes.</div>` : ''}
+    <div class="visit-bar-foot">
+      <div><span>Duración</span><b>${esc(dur)}</b></div>
+      <div><span>Total</span><b>${money(totalPrice)}</b></div>
+    </div>
+    <button class="btn btn-primary" data-visit-continue>CONTINUAR</button>
+  </div>`;
+}
+
+/* A stable per-browser id used to own slot holds. Not a session and not
+   security — it only answers "is this MY hold or someone else's?", so the
+   client who selected a time still sees it as available while she types. */
+function holderId() {
+  if (!state._holderId) {
+    state._holderId = 'h_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+  return state._holderId;
+}
+
+/* Reserve the selected slot for a few minutes. On refusal the slot was taken
+   between render and tap, so refresh the grid and say so immediately. */
+async function holdSelectedSlot() {
+  const b = state.booking;
+  const ids = (b.serviceIds || []).filter(Boolean);
+  if (!b.date || !b.time || !ids.length) return;
+  try {
+    await api('/api/slots/hold', {
+      method: 'POST',
+      body: { date: b.date, time: b.time, serviceIds: ids, holder: holderId() }
+    });
+    b.holdError = '';
+  } catch (err) {
+    b.time = null;
+    b.holdError = err.message || 'Ese horario acaba de ocuparse.';
+    await loadAvailability();
+    render();
+  }
+}
+
+/* Let the slot go when the client leaves the time step, so an abandoned tab
+   doesn't keep an hour blocked for the full TTL. */
+function releaseHeldSlot() {
+  const b = state.booking;
+  if (!state._holderId || !b.date) return;
+  const payload = JSON.stringify({ holder: state._holderId, date: b.date });
+  // sendBeacon survives the page being closed; fetch is the fallback.
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon('/api/slots/release', new Blob([payload], { type: 'application/json' }));
+  } else {
+    fetch('/api/slots/release', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload }).catch(() => {});
+  }
+}
+window.addEventListener('pagehide', releaseHeldSlot);
+
+/* "Desde $X" under the hero headline, controlled from Admin → CONFIGURACIÓN.
+   Two modes:
+     auto   — tracks the cheapest active service, so it can never go stale
+              when prices change
+     manual — the salon quotes its own headline figure
+   Renders nothing when switched off, or when auto mode finds no priced
+   service, so the hero can never show a broken "Desde $0". */
+/* Cheapest active service — powers the admin preview of the auto mode. */
+function heroAutoPrice() {
+  const prices = (state.services || [])
+    .filter(x => x.active !== false)
+    .map(x => Number(x.price) || 0)
+    .filter(p => p > 0);
+  return prices.length ? Math.min(...prices) : 0;
+}
+
+function heroPriceAnchor() {
+  const cfg = state.config?.brand?.priceAnchor;
+  // Default to showing it when the salon hasn't configured anything yet.
+  if (cfg && cfg.enabled === false) return '';
+
+  let amount = 0;
+  if (cfg && cfg.mode === 'manual') {
+    amount = Number(cfg.manualPrice) || 0;
+  } else {
+    const prices = (state.services || [])
+      .filter(s => s.active !== false)
+      .map(s => Number(s.price) || 0)
+      .filter(p => p > 0);
+    if (prices.length) amount = Math.min(...prices);
+  }
+  if (!amount) return '';
+
+  const label = (cfg && cfg.label) || 'Desde';
+  const note = (cfg && cfg.note) || state.config?.contact?.zone || '';
+  return `<div class="hero-anchor">
+    <span class="hero-anchor-price">${esc(label)} ${money(amount)}</span>
+    ${note ? `<span class="hero-anchor-sep">·</span><span class="hero-anchor-zone">${esc(note)}</span>` : ''}
+  </div>`;
+}
+
+/* Homepage CTA placement.
+   Density maps to WHICH sections get a booking prompt. Placements follow
+   desire rather than spreading evenly: a CTA lands after she's seen the work
+   (gallery), the prices (services), and the people (team) — the moments that
+   build intent. Blog and academy only get one at 'high', because those readers
+   are researching, and academy already carries its own "VER CURSOS". */
+const CTA_PLACEMENTS = {
+  minimal:  ['services', 'gallery'],
+  balanced: ['services', 'gallery', 'team', 'about'],
+  high:     ['services', 'promos', 'gallery', 'blog', 'team', 'about']
+};
+
+/* Human-readable list of where CTAs will land, so the admin sees the effect
+   of a density choice without having to preview the whole page. */
+function ctaPlacementNames(density) {
+  const names = { services: 'Servicios', promos: 'Promociones', gallery: 'Galería', blog: 'Blog', team: 'Equipo', about: 'Nosotros' };
+  return (CTA_PLACEMENTS[density] || CTA_PLACEMENTS.balanced).map(k => names[k] || k).join(' · ');
+}
+
+function sectionCta(sectionKey) {
+  const cfg = state.config?.brand?.ctas || {};
+  const density = CTA_PLACEMENTS[cfg.density] ? cfg.density : 'balanced';
+  if (!CTA_PLACEMENTS[density].includes(sectionKey)) return '';
+  const label = cfg.label || 'RESERVAR MI CITA';
+  const note = cfg.note || '';
+  return `<div class="section section-cta">
+    ${note ? `<div class="section-cta-note">${esc(note)}</div>` : ''}
+    <button class="btn btn-primary" data-tab="reservar">${esc(label)}</button>
+  </div>`;
 }
 
 function statusLabel(s) {
@@ -3840,7 +4078,7 @@ function adminServices(data) {
     ${services.map(s => `<div class="admin-service-row">
       <div class="admin-service-main">
         <div><div class="service-name">${esc(s.name)}${featuredIds.includes(s.id) ? ' ★' : ''}</div><div class="service-meta">${esc(s.cat)} · ${esc(s.dur)} min · ${s.active ? 'Activo' : 'Pausado'}</div></div>
-        <button class="toggle ${s.active ? 'active' : ''}" data-toggle-service="${esc(s.id)}" data-active="${s.active ? '1' : '0'}"><span></span></button>
+        <button class="toggle ${s.active ? 'active' : ''}" data-pick-service="${esc(s.id)}" data-active="${s.active ? '1' : '0'}"><span></span></button>
       </div>
       <div class="admin-service-main">
         <div class="price">${money(s.price)}</div>
@@ -4476,6 +4714,8 @@ async function saveAboutUs() {
 }
 
 function adminConfiguracion(data) {
+  const pa = (state.config?.brand?.priceAnchor) || (data?.settings?.brand?.priceAnchor) || {};
+  const ct = (state.config?.brand?.ctas) || (data?.settings?.brand?.ctas) || {};
   const cfg = state.admin.configDraft || state.salonConfig || {};
   const brand = state.config?.brand || {};
   const contact = state.config?.contact || {};
@@ -4510,6 +4750,56 @@ function adminConfiguracion(data) {
           <div class="form-field"><label>Rating (ej. 4.9)</label><input name="rating" value="${esc(brand.rating||'')}"></div>
           <div class="form-field"><label>Texto de reseña</label><input name="socialProof" value="${esc(brand.socialProof||'')}"></div>
           <div class="form-field"><label>Texto del footer</label><input name="footer" value="${esc(brand.footer||'')}"></div>
+        </div>
+        <div class="price-anchor-box cta-density-box">
+          <div class="eyebrow">LLAMADOS A LA ACCIÓN</div>
+          <div class="field-hint" style="margin:4px 0 10px">Cuántos botones de "reservar" aparecen mientras la clienta baja por el inicio. Más no siempre es mejor: demasiados cansan y bajan la conversión.</div>
+          <div class="form-grid two-col">
+            <div class="form-field"><label>Densidad</label>
+              <select name="cta_density">
+                <option value="minimal" ${(ct.density||'balanced')==='minimal'?'selected':''}>Discreta (2 botones)</option>
+                <option value="balanced" ${(ct.density||'balanced')==='balanced'?'selected':''}>Equilibrada (4) — recomendada</option>
+                <option value="high" ${ct.density==='high'?'selected':''}>Alta (6)</option>
+              </select>
+            </div>
+            <div class="form-field"><label>Texto del botón</label>
+              <input name="cta_label" value="${esc(ct.label || 'RESERVAR MI CITA')}" maxlength="40" placeholder="RESERVAR MI CITA">
+            </div>
+          </div>
+          <div class="form-field"><label>Frase arriba del botón (opcional)</label>
+            <input name="cta_note" value="${esc(ct.note || '')}" maxlength="120" placeholder="¿Lista para consentirte?">
+          </div>
+          <div class="cta-density-preview">
+            Aparecerá después de: <b>${esc(ctaPlacementNames(ct.density || 'balanced'))}</b>
+            <div class="field-hint" style="margin-top:6px">El hero siempre lleva su propio botón, además de estos.</div>
+          </div>
+        </div>
+
+        <div class="price-anchor-box">
+          <label class="deposit-toggle ${pa.enabled !== false ? 'on' : ''}">
+            <input type="checkbox" name="pa_enabled" ${pa.enabled !== false ? 'checked' : ''}>
+            <span class="deposit-toggle-text"><b>Mostrar precio en el hero</b> — responde la primera pregunta de la clienta ("¿cuánto cuesta?") sin que tenga que buscar.</span>
+          </label>
+          <div class="form-grid two-col">
+            <div class="form-field"><label>Modo</label>
+              <select name="pa_mode">
+                <option value="auto" ${(pa.mode||'auto')==='auto'?'selected':''}>Automático (servicio más económico)</option>
+                <option value="manual" ${pa.mode==='manual'?'selected':''}>Manual (yo escribo el precio)</option>
+              </select>
+              <div class="field-hint">Automático se actualiza solo cuando cambias precios.</div>
+            </div>
+            <div class="form-field"><label>Precio manual</label>
+              <input type="number" min="0" name="pa_manualPrice" value="${esc(pa.manualPrice ?? 0)}" ${(pa.mode||'auto')==='auto'?'disabled':''}>
+              <div class="field-hint">Solo se usa en modo manual.</div>
+            </div>
+            <div class="form-field"><label>Texto antes del precio</label>
+              <input name="pa_label" value="${esc(pa.label || 'Desde')}" placeholder="Desde" maxlength="40">
+            </div>
+            <div class="form-field"><label>Nota al lado (opcional)</label>
+              <input name="pa_note" value="${esc(pa.note || '')}" placeholder="Ciudad Granja, Zapopan" maxlength="80">
+            </div>
+          </div>
+          <div class="price-anchor-preview">Vista previa: <b>${esc(pa.label || 'Desde')} $${esc(pa.mode === 'manual' ? (pa.manualPrice || 0) : (heroAutoPrice() || '—'))}</b>${pa.note ? ` · ${esc(pa.note)}` : ''}</div>
         </div>
         <button class="btn btn-primary" type="submit" ${saving?'disabled':''}>GUARDAR MARCA</button>
       </form>
@@ -4599,6 +4889,25 @@ async function saveSettings(section, formData) {
     let body = {};
     if (section === 'brand' || section === 'contact') {
       body = Object.fromEntries(formData.entries());
+      if (section === 'brand') {
+        // The price-anchor controls are flat pa_* fields in the DOM (FormData
+        // can't express nesting); rebuild the object the API expects and drop
+        // the loose keys so they don't land on the brand record.
+        body.ctas = {
+          density: String(formData.get('cta_density') || 'balanced'),
+          label: String(formData.get('cta_label') || 'RESERVAR MI CITA'),
+          note: String(formData.get('cta_note') || '')
+        };
+        Object.keys(body).forEach(k => { if (k.startsWith('cta_')) delete body[k]; });
+        body.priceAnchor = {
+          enabled: formData.get('pa_enabled') === 'on',
+          mode: formData.get('pa_mode') === 'manual' ? 'manual' : 'auto',
+          manualPrice: Number(formData.get('pa_manualPrice')) || 0,
+          label: String(formData.get('pa_label') || 'Desde'),
+          note: String(formData.get('pa_note') || '')
+        };
+        Object.keys(body).forEach(k => { if (k.startsWith('pa_')) delete body[k]; });
+      }
     } else if (section === 'booking') {
       body = Object.fromEntries(formData.entries());
       body.times = String(body.times || '').split(',').map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
@@ -4843,10 +5152,35 @@ app.addEventListener('click', async event => {
   // data-book-from-modal must be checked BEFORE data-view-service:
   // the RESERVAR button sits inside a card that may carry data-view-service,
   // and closest() would otherwise re-open the modal instead of booking.
+  if (target.dataset.bookThisLook !== undefined) {
+    const cat = target.dataset.bookThisLook || '';
+    // Close the lightbox if the tap came from inside it.
+    state.lightbox = null;
+    // If the gallery category maps onto a service category, jump straight to
+    // the booking step with those services already filtered into view — she
+    // shouldn't have to translate "ese diseño" into a menu item herself.
+    const match = (state.services || []).find(s =>
+      s.active !== false && cat && String(s.cat || '').toLowerCase() === cat.toLowerCase());
+    if (match) {
+      const list = state.booking.serviceIds || [];
+      if (!list.includes(match.id)) state.booking.serviceIds = [...list, match.id];
+      state.booking.serviceId = state.booking.serviceIds[0] || match.id;
+    }
+    state.booking.step = 1;
+    state.booking.time = null;
+    return goClient('reservar');
+  }
   if (target.hasAttribute('data-book-from-modal')) {
     const id = target.getAttribute('data-book-from-modal');
     state.serviceModalId = null;
-    return startBooking(id);
+    // Add to the visit rather than replacing it, so a client can browse
+    // several services and collect them before choosing a time.
+    const list = state.booking.serviceIds || [];
+    if (!list.includes(id)) state.booking.serviceIds = [...list, id];
+    state.booking.serviceId = state.booking.serviceIds[0] || id;
+    state.booking.step = 1;
+    state.booking.time = null;
+    return goClient('reservar');
   }
   if (target.dataset.viewService) {
     state.serviceModalId = target.dataset.viewService;
@@ -4889,8 +5223,22 @@ app.addEventListener('click', async event => {
   }
   if (target.hasAttribute('data-rebook-lookup')) return lookupRebook();
   if (target.hasAttribute('data-rebook-apply')) return applyRebook();
-  if (target.dataset.selectService) {
-    state.booking.serviceId = target.dataset.selectService;
+  if (target.dataset.pickService) {
+    const id = target.dataset.pickService;
+    const list = state.booking.serviceIds || [];
+    state.booking.serviceIds = list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+    // Keep the legacy single id in sync so every existing screen keeps working.
+    state.booking.serviceId = state.booking.serviceIds[0] || '';
+    state.booking.time = null;
+    return render();
+  }
+  if (target.hasAttribute('data-clear-visit')) {
+    state.booking.serviceIds = [];
+    state.booking.serviceId = '';
+    return render();
+  }
+  if (target.hasAttribute('data-visit-continue')) {
+    if (!(state.booking.serviceIds || []).length) return;
     state.booking.step = 2;
     state.booking.time = null;
     await loadAvailability();
@@ -4910,6 +5258,10 @@ app.addEventListener('click', async event => {
   }
   if (target.dataset.time) {
     state.booking.time = target.dataset.time;
+    // Hold it so nobody else can start checkout on the same slot. If the hold
+    // is refused the slot went in the last few seconds — refresh and tell her
+    // now, rather than after she's filled in the whole form.
+    holdSelectedSlot();
     return render();
   }
   if (target.hasAttribute('data-verify-request')) {
@@ -5280,6 +5632,13 @@ app.addEventListener('input', event => {
 
 app.addEventListener('change', async event => {
   const el = event.target;
+  // Price-anchor mode: grey out the manual field when tracking automatically,
+  // so it's obvious which value is actually in use.
+  if (el.name === 'pa_mode') {
+    const manual = el.closest('form')?.querySelector('[name="pa_manualPrice"]');
+    if (manual) manual.disabled = el.value !== 'manual';
+    return;
+  }
   // Chat image attachments (visitor + admin)
   if (el.hasAttribute('data-chat-file') && el.files?.[0]) {
     stageChatImage(el.files[0], false);
@@ -5597,6 +5956,16 @@ function connectRealtime() {
   if (!window.EventSource) return; // very old browsers: no live sync, app still works
   const es = new EventSource('/api/events');
   es.addEventListener('data', scheduleLiveRefresh);
+  // Someone else booked or is holding a slot: refresh the time grid so a
+  // taken hour disappears instead of failing at submit.
+  es.addEventListener('availability', e => {
+    let info = {};
+    try { info = JSON.parse(e.data); } catch (_) {}
+    if (state.mode !== 'client') return;
+    if (state.tab !== 'reservar' || state.booking.step !== 2) return;
+    if (info.date && info.date !== state.booking.date) return;
+    loadAvailability();
+  });
   es.addEventListener('chat', e => {
     let info = {};
     try { info = JSON.parse(e.data); } catch (_) {}
