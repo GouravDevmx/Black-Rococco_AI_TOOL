@@ -3706,3 +3706,41 @@ img[data-failed]::after {
   border-top: 1px solid var(--border);
 }
 .auth-benefits span { font-size: 12px; color: var(--text-secondary); }
+
+/* =========================================================================
+   CONFIRMATION LANDING + REMINDER SETTINGS
+   ========================================================================= */
+.confirm-wrap { padding: 28px 18px 40px; display: flex; justify-content: center; }
+.confirm-card {
+  width: 100%; max-width: 380px; text-align: center; padding: 28px 22px;
+  border-top: 3px solid var(--gold);
+}
+.confirm-card.confirm-ok { border-top-color: #3e7d4f; }
+.confirm-icon {
+  width: 56px; height: 56px; margin: 0 auto 14px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; background: var(--gold-glow); color: var(--gold-text);
+}
+.confirm-ok .confirm-icon { background: rgba(62,125,79,.14); color: #3e7d4f; }
+.confirm-card .title { font-family: var(--font-display); font-size: 24px; }
+.confirm-detail {
+  text-align: left; margin: 18px 0 6px; border-top: 1px solid var(--border);
+}
+.confirm-detail div {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.confirm-detail span { color: var(--muted); }
+.confirm-detail b { color: var(--text); text-align: right; }
+.confirm-yes { margin-top: 18px; }
+.confirm-no { margin-top: 10px; }
+.confirm-help { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.confirm-help a { color: var(--gold-text); }
+/* No bottom nav on this screen — it's a single-purpose landing. */
+.confirm-screen .bottom-nav { display: none; }
+
+.ph-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: -4px; }
+.ph-chips code {
+  font-size: 10.5px; padding: 3px 7px; border-radius: 4px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--gold-text);
+}

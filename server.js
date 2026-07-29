@@ -87,6 +87,7 @@ const blogsDomain = require('./lib/domains/blogs');
 const seoDomain = require('./lib/domains/seo');
 const chatDomain = require('./lib/domains/chat');
 const verifyDomain = require('./lib/domains/verify');
+const remindersDomain = require('./lib/domains/reminders');
 const realtime = require('./lib/realtime');
 const salonRef = require('./lib/salonRef');
 
@@ -147,6 +148,12 @@ async function handleApi(req, res, pathname, url) {
     if (req.method === 'POST' && pathname === '/api/course-registrations') {
       const db = await readDb(salonId, ['courses', 'courseRegistrations', 'notifications']);
       if (await coursesDomain.handlePublicRoutes({ ...publicCtx, db })) return;
+    }
+
+    // One-tap appointment confirm/cancel from a reminder link.
+    if (pathname.startsWith('/api/appointments/confirm')) {
+      const db = await readDb(salonId, ['appointments', 'services', 'clients', 'staff', 'notifications']);
+      if (await remindersDomain.handlePublicRoutes({ ...publicCtx, db })) return;
     }
 
     // WhatsApp OTP verification (in-memory, no db collections needed)

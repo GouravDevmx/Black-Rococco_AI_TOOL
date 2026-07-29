@@ -13,6 +13,7 @@ const state = {
   media: { gallery: [], carousel: [], categories: [] },
   serviceModalId: null,
   courseModalId: null,
+  confirm: { appointmentId: '', token: '', loading: false, acting: false, error: '', appointment: null, done: '' },
   verify: { stage: 'idle', code: '', verified: false, forNumber: '', error: '', devCode: '' },
   menuOpen: false,
   lightbox: null,
@@ -240,6 +241,22 @@ function setHashMode() {
     state.tab = 'blog';
     const slug = decodeURIComponent(path.slice(6));
     if (slug) loadBlogDetail(slug);
+    return;
+  }
+  // One-tap confirmation landing, opened from a WhatsApp reminder link.
+  // Deliberately outside CLIENT_TABS: it has no bottom nav and no session,
+  // the signed token in the query string is the whole authorisation.
+  if (path === '/confirmar') {
+    state.mode = 'client';
+    state.tab = 'confirmar';
+    const q = new URLSearchParams(location.search);
+    state.confirm = {
+      ...state.confirm,
+      appointmentId: q.get('a') || '',
+      token: q.get('t') || '',
+      loading: true, error: '', appointment: null, done: ''
+    };
+    loadConfirmInfo();
     return;
   }
   if (path.startsWith('/academia/')) {
@@ -1507,6 +1524,48 @@ async function saveMultiUploadToGallery(category) {
     state.admin.multiUploadProgress = 0;
     await refreshPublicConfig();
     await loadAdminDashboard();
+  } catch (err) {
+    state.admin.error = err.message;
+  }
+  render();
+}
+
+/* Collects the reminder form into the nested shape the server stores.
+   Schedule rows are flattened as sched_<i>_<field> in the DOM, so rebuild
+   them by index here rather than sending a dozen loose keys. */
+async function saveReminders(form) {
+  const fd = new FormData(form);
+  const g = k => fd.get(k);
+  const on = k => fd.get(k) === 'on';
+
+  const schedule = [];
+  for (let i = 0; i < 12; i++) {
+    if (fd.get(`sched_${i}_hours`) === null) continue;
+    const hours = Number(fd.get(`sched_${i}_hours`));
+    if (!hours || hours < 1) continue;
+    schedule.push({
+      hoursBefore: hours,
+      enabled: on(`sched_${i}_enabled`),
+      template: String(fd.get(`sched_${i}_template`) || '')
+    });
+  }
+
+  const reminders = {
+    enabled: on('enabled'),
+    onBooking: { enabled: on('onBooking_enabled'), template: String(g('onBooking_template') || '') },
+    schedule,
+    afterVisit: {
+      enabled: on('afterVisit_enabled'),
+      hoursAfter: Number(g('afterVisit_hours')) || 3,
+      template: String(g('afterVisit_template') || '')
+    }
+  };
+
+  state.admin.error = '';
+  try {
+    await api('/api/admin/settings/reminders', { method: 'PUT', body: { reminders } });
+    await loadAdminDashboard();
+    await refreshPublicConfig();
   } catch (err) {
     state.admin.error = err.message;
   }
@@ -3014,6 +3073,185 @@ function miCuentaScreen() {
   </section>`;
 }
 
+// =========================================================================
+// CONFIRMATION LANDING — opened from a reminder link. One tap, no login.
+// =========================================================================
+async function loadConfirmInfo() {
+  const c = state.confirm;
+  if (!c.appointmentId || !c.token) {
+    c.loading = false; c.error = 'El enlace está incompleto.'; return render();
+  }
+  try {
+    const data = await api(`/api/appointments/confirm-info?a=${encodeURIComponent(c.appointmentId)}&t=${encodeURIComponent(c.token)}`);
+    c.appointment = data.appointment;
+  } catch (err) {
+    c.error = err.message || 'Este enlace ya no es válido.';
+  }
+  c.loading = false;
+  render();
+}
+
+async function respondToAppointment(action) {
+  const c = state.confirm;
+  c.acting = true; c.error = ''; render();
+  try {
+    const data = await api('/api/appointments/confirm', {
+      method: 'POST',
+      body: { appointmentId: c.appointmentId, token: c.token, action }
+    });
+    c.done = data.action || action;
+    if (c.appointment) c.appointment.status = data.status;
+  } catch (err) {
+    c.error = err.message;
+  }
+  c.acting = false;
+  render();
+}
+
+function confirmScreen() {
+  const c = state.confirm || {};
+  const wa = (state.config?.contact?.whatsapp || '').replace(/\D/g, '');
+
+  const shell = inner => `<section class="screen confirm-screen">
+    ${brandHeader()}
+    <div class="confirm-wrap">${inner}</div>
+  </section>`;
+
+  if (c.loading) return shell(`<div class="card confirm-card"><div class="subtitle">Cargando tu cita...</div></div>`);
+
+  if (c.error && !c.appointment) {
+    return shell(`<div class="card confirm-card">
+      <div class="confirm-icon">🔗</div>
+      <div class="title">Enlace no válido</div>
+      <p class="subtitle">${esc(c.error)}</p>
+      ${wa ? `<a class="btn btn-primary" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">ESCRÍBENOS POR WHATSAPP</a>` : ''}
+      <button class="btn btn-outline" style="margin-top:10px" data-tab="inicio">IR AL INICIO</button>
+    </div>`);
+  }
+
+  const a = c.appointment || {};
+  const when = `${esc(formatDate(a.date))} · ${esc(a.time)}`;
+
+  // Already resolved, either just now or previously.
+  if (c.done === 'confirm' || (!c.done && a.status === 'confirmed')) {
+    return shell(`<div class="card confirm-card confirm-ok">
+      <div class="confirm-icon">✓</div>
+      <div class="title">¡Cita confirmada!</div>
+      <p class="subtitle">Te esperamos el <b>${when}</b> para tu ${esc(a.serviceName)}.</p>
+      <div class="confirm-detail">
+        <div><span>Folio</span><b>${esc(a.folio)}</b></div>
+        <div><span>Servicio</span><b>${esc(a.serviceName)}</b></div>
+        <div><span>Fecha</span><b>${when}</b></div>
+      </div>
+      <button class="btn btn-outline" style="margin-top:16px" data-tab="inicio">VER EL SITIO</button>
+    </div>`);
+  }
+  if (c.done === 'cancel' || (!c.done && ['deleted', 'cancelled'].includes(a.status))) {
+    return shell(`<div class="card confirm-card">
+      <div class="confirm-icon">✕</div>
+      <div class="title">Cita cancelada</div>
+      <p class="subtitle">Liberamos tu horario. Cuando quieras volver, aquí estaremos 💛</p>
+      <button class="btn btn-primary" data-tab="reservar">AGENDAR OTRA FECHA</button>
+      ${wa ? `<a class="btn btn-outline" style="margin-top:10px" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">HABLAR POR WHATSAPP</a>` : ''}
+    </div>`);
+  }
+
+  // Pending — ask.
+  return shell(`<div class="card confirm-card">
+    <div class="eyebrow">TU CITA EN BLACK ROCOCO</div>
+    <div class="title" style="margin:6px 0 2px">Hola${a.clientName ? ', ' + esc(a.clientName.split(' ')[0]) : ''}</div>
+    <p class="subtitle">¿Nos confirmas que sí asistes?</p>
+    <div class="confirm-detail">
+      <div><span>Servicio</span><b>${esc(a.serviceName)}</b></div>
+      <div><span>Fecha</span><b>${when}</b></div>
+      ${a.staffName ? `<div><span>Te atiende</span><b>${esc(a.staffName)}</b></div>` : ''}
+      <div><span>Folio</span><b>${esc(a.folio)}</b></div>
+    </div>
+    ${c.error ? `<div class="error-box">${esc(c.error)}</div>` : ''}
+    <button class="btn btn-primary confirm-yes" data-confirm-appt="confirm" ${c.acting ? 'disabled' : ''}>
+      ${c.acting ? 'UN MOMENTO...' : 'SÍ, AHÍ ESTARÉ ✓'}
+    </button>
+    <button class="btn btn-outline confirm-no" data-confirm-appt="cancel" ${c.acting ? 'disabled' : ''}>NO PODRÉ ASISTIR</button>
+    ${wa ? `<div class="confirm-help">¿Necesitas cambiar la fecha? <a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">Escríbenos</a></div>` : ''}
+  </div>`);
+}
+
+/* Reminder settings — the salon edits timing and wording here instead of
+   redeploying with new env vars. Placeholders are listed inline so the owner
+   doesn't have to remember them. */
+function adminReminders(data) {
+  const r = (data?.settings?.reminders) || state.config?.reminders || {};
+  const sched = Array.isArray(r.schedule) ? r.schedule : [];
+  const stats = data?.reminderStats || {};
+  const PLACEHOLDERS = ['{cliente}', '{servicio}', '{fecha}', '{hora}', '{profesional}', '{salon}', '{folio}', '{confirmar}'];
+
+  const chips = `<div class="ph-chips">${PLACEHOLDERS.map(p => `<code>${esc(p)}</code>`).join('')}</div>`;
+
+  return `<form class="admin-screen" data-reminders-form>
+    <div class="card admin-panel-head">
+      <div><div class="title">Recordatorios automáticos</div>
+      <div class="subtitle">Reduce inasistencias avisando a tus clientas antes de su cita.</div></div>
+    </div>
+
+    <div class="stats" style="margin-bottom:16px">
+      <div class="card"><div class="stat-label">Enviados (30 días)</div><div class="stat-value">${esc(stats.sent ?? 0)}</div></div>
+      <div class="card"><div class="stat-label">Confirmadas</div><div class="stat-value">${esc(stats.confirmed ?? 0)}</div></div>
+      <div class="card"><div class="stat-label">Tasa</div><div class="stat-value">${esc(stats.rate ?? '0%')}</div></div>
+    </div>
+
+    ${stats.missingContact ? `<div class="notif-setup" style="margin-bottom:16px">
+      <b>${esc(stats.missingContact)} clienta(s) sin WhatsApp válido</b> — no reciben recordatorios. Revísalas en CLIENTAS.
+    </div>` : ''}
+
+    <label class="deposit-toggle ${r.enabled !== false ? 'on' : ''}">
+      <input type="checkbox" name="enabled" ${r.enabled !== false ? 'checked' : ''}>
+      <span class="deposit-toggle-text"><b>Sistema de recordatorios activo</b> — apágalo para pausar todos los envíos.</span>
+    </label>
+
+    <div class="card" style="margin-bottom:14px">
+      <label class="deposit-toggle ${r.onBooking?.enabled !== false ? 'on' : ''}" style="margin-bottom:10px">
+        <input type="checkbox" name="onBooking_enabled" ${r.onBooking?.enabled !== false ? 'checked' : ''}>
+        <span class="deposit-toggle-text"><b>Al momento de reservar</b> — confirmación inmediata</span>
+      </label>
+      <div class="form-field"><label>Mensaje</label>
+        <textarea name="onBooking_template" rows="6">${esc(r.onBooking?.template || '')}</textarea>
+      </div>
+      ${chips}
+    </div>
+
+    ${sched.map((s, i) => `<div class="card" style="margin-bottom:14px">
+      <label class="deposit-toggle ${s.enabled !== false ? 'on' : ''}" style="margin-bottom:10px">
+        <input type="checkbox" name="sched_${i}_enabled" ${s.enabled !== false ? 'checked' : ''}>
+        <span class="deposit-toggle-text"><b>Antes de la cita</b></span>
+      </label>
+      <div class="form-field"><label>Horas antes</label>
+        <input type="number" min="1" max="336" name="sched_${i}_hours" value="${esc(s.hoursBefore)}">
+      </div>
+      <div class="form-field"><label>Mensaje</label>
+        <textarea name="sched_${i}_template" rows="5">${esc(s.template || '')}</textarea>
+      </div>
+      ${chips}
+    </div>`).join('')}
+
+    <div class="card" style="margin-bottom:14px">
+      <label class="deposit-toggle ${r.afterVisit?.enabled ? 'on' : ''}" style="margin-bottom:10px">
+        <input type="checkbox" name="afterVisit_enabled" ${r.afterVisit?.enabled ? 'checked' : ''}>
+        <span class="deposit-toggle-text"><b>Después de la visita</b> — pide reseña o reagenda</span>
+      </label>
+      <div class="form-field"><label>Horas después</label>
+        <input type="number" min="1" max="168" name="afterVisit_hours" value="${esc(r.afterVisit?.hoursAfter ?? 3)}">
+      </div>
+      <div class="form-field"><label>Mensaje</label>
+        <textarea name="afterVisit_template" rows="4">${esc(r.afterVisit?.template || '')}</textarea>
+      </div>
+      ${chips}
+    </div>
+
+    ${state.admin.error ? `<div class="error-box">${esc(state.admin.error)}</div>` : ''}
+    <button class="btn btn-primary" data-save-reminders>GUARDAR RECORDATORIOS</button>
+  </form>`;
+}
+
 function statusLabel(s) {
   return {
     new: 'NUEVA', in_progress: 'EN PROCESO', pending_payment: 'PAGO PENDIENTE',
@@ -3154,7 +3392,7 @@ function adminScreen() {
       <div class="card"><div class="eyebrow">NOTIFICACIONES</div><div class="stat-number">${esc(data?.unreadNotifications || 0)}</div></div>
     </div>
     <div class="pill-row admin-tabs">
-      ${[['agenda','AGENDA'],['chat',`CHAT${state.adminChat.totalUnread ? ` (${state.adminChat.totalUnread})` : ''}`],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['blog','BLOG'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
+      ${[['agenda','AGENDA'],['chat',`CHAT${state.adminChat.totalUnread ? ` (${state.adminChat.totalUnread})` : ''}`],['notificaciones',`NOTIFICACIONES${data?.unreadNotifications ? ` (${data.unreadNotifications})` : ''}`],['recordatorios','RECORDATORIOS'],['servicios','SERVICIOS'],['promociones','PROMOCIONES'],['clientas','CLIENTAS'],['equipo','EQUIPO'],['academia','ACADEMIA'],['galeria','GALERÍA'],['blog','BLOG'],['publicar','PUBLICAR'],['integraciones','INTEGRACIONES'],['configuracion','CONFIGURACIÓN']].map(([id,label]) => `<button class="pill-button ${state.admin.tab === id ? 'active' : ''}" data-admin-tab="${id}">${label}</button>`).join('')}
     </div>
     ${state.admin.error ? `<div class="error-box">${esc(state.admin.error)}</div>` : ''}
     ${state.admin.tab === 'agenda' ? adminAgenda(data) : ''}
@@ -3168,6 +3406,7 @@ function adminScreen() {
     ${state.admin.tab === 'galeria' ? adminGallery(data) : ''}
     ${state.admin.tab === 'blog' ? adminBlog(data) : ''}
     ${state.admin.tab === 'publicar' ? adminPublish(data) : ''}
+    ${state.admin.tab === 'recordatorios' ? adminReminders(data) : ''}
     ${state.admin.tab === 'integraciones' ? adminIntegrations() : ''}
     ${state.admin.tab === 'configuracion' ? adminConfiguracion(data) : ''}
   </section>`;
@@ -4438,6 +4677,8 @@ function render() {
   if (!state.config) return;
   const body = state.mode === 'admin'
     ? adminScreen()
+    : state.tab === 'confirmar'
+    ? confirmScreen()
     : state.tab === 'servicios'
       ? servicesScreen()
       : state.tab === 'reservar'
@@ -4878,6 +5119,12 @@ app.addEventListener('click', async event => {
   }
   if (target.dataset.cycleStatus) return cycleStatus(target.dataset.cycleStatus, target.dataset.currentStatus);
   if (target.dataset.moveAppt) return moveApptStatus(target.dataset.moveAppt, target.dataset.to);
+  if (target.hasAttribute('data-save-reminders')) {
+    const form = target.closest('[data-reminders-form]');
+    if (form) return saveReminders(form);
+    return;
+  }
+  if (target.dataset.confirmAppt) return respondToAppointment(target.dataset.confirmAppt);
   if (target.dataset.notifFilter) { state.admin.notifFilter = target.dataset.notifFilter; return render(); }
   if (target.dataset.priceStep) {
     const id = target.dataset.priceStep;
